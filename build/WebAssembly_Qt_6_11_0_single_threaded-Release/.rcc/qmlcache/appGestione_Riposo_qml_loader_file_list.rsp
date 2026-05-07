@@ -1,0 +1,5 @@
+--resource
+C:/ProgettiQt/Gestione_Riposo/build/WebAssembly_Qt_6_11_0_single_threaded-Release/.qt/rcc/qmake_Gestione_Riposo.qrc
+--resource
+C:/ProgettiQt/Gestione_Riposo/build/WebAssembly_Qt_6_11_0_single_threaded-Release/.qt/rcc/appGestione_Riposo_raw_qml_0.qrc
+/qt/qml/Gestione_Riposo/Main.qml

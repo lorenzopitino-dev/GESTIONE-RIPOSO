@@ -1,0 +1,14 @@
+-I
+C:/ProgettiQt/Gestione_Riposo
+-I
+C:/ProgettiQt/Gestione_Riposo/Gestione_Riposo
+-I
+C:/ProgettiQt/Gestione_Riposo
+-I
+C:/Qt/6.11.0/wasm_singlethread/qml
+--resource
+C:/ProgettiQt/Gestione_Riposo/.qt/rcc/qmake_Gestione_Riposo.qrc
+--resource
+C:/ProgettiQt/Gestione_Riposo/.qt/rcc/appGestione_Riposo_raw_qml_0.qrc
+--module
+Gestione_Riposo

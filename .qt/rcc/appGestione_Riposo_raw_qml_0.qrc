@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/qt/qml/Gestione_Riposo/">
+    <file alias="Main.qml">C:/ProgettiQt/Gestione_Riposo/Main.qml</file>
+  </qresource>
+</RCC>
+

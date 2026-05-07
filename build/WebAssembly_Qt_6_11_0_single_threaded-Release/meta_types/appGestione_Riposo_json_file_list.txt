@@ -1,0 +1,1 @@
+C:/ProgettiQt/Gestione_Riposo/build/WebAssembly_Qt_6_11_0_single_threaded-Release/appGestione_Riposo_autogen/include/../EWIEGA46WW/moc_databasemanager.cpp.json

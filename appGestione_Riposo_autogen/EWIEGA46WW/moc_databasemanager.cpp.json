@@ -1,0 +1,671 @@
+{
+    "classes": [
+        {
+            "className": "DatabaseManager",
+            "lineNumber": 17,
+            "methods": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "cip",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 12,
+                    "lineNumber": 25,
+                    "name": "login",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 13,
+                    "lineNumber": 69,
+                    "name": "controllaStatoBlocco",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "inizio",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "fine",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "attivo",
+                            "type": "bool"
+                        }
+                    ],
+                    "index": 14,
+                    "lineNumber": 99,
+                    "name": "aggiornaBloccoSistema",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idSeriale",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 15,
+                    "lineNumber": 126,
+                    "name": "caricaRiposiDisponibili",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idSeriale",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "tipoReport",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 16,
+                    "lineNumber": 158,
+                    "name": "caricaReport",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idSeriale",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "dataGGMMAAAA",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "sceltaTipo",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 17,
+                    "lineNumber": 211,
+                    "name": "aggiungiRiposo",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idSeriale",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "dataMaturazioneISO",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "dataFruizioneGGMMAAAA",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "statoScelto",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 18,
+                    "lineNumber": 284,
+                    "name": "fruisciRiposo",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idSeriale",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "dataMaturazioneITA",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "tipoIdx",
+                            "type": "int"
+                        },
+                        {
+                            "name": "statoIdx",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 19,
+                    "lineNumber": 328,
+                    "name": "modificaRiposo",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idSeriale",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "dataGGMMAAAA",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 20,
+                    "lineNumber": 372,
+                    "name": "controllaEsistenzaEChiediConferma",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idSeriale",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "dataGGMMAAAA",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 21,
+                    "lineNumber": 404,
+                    "name": "cancellaRiposoEffettivo",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "dataInizioGGMMAAAA",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "dataFineGGMMAAAA",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 22,
+                    "lineNumber": 429,
+                    "name": "caricaSpecchioAdmin",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idUtenteLoggato",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "dataISO",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "codiceLicenza",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 23,
+                    "lineNumber": 506,
+                    "name": "salvaLicenzaPersonale",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idSeriale",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "dataISO",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "codiceLicenza",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 24,
+                    "lineNumber": 536,
+                    "name": "cancellaLicenza",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 25,
+                    "lineNumber": 562,
+                    "name": "caricaRichiesteInBlocco",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idRiposiRaw",
+                            "type": "QVariantList"
+                        },
+                        {
+                            "name": "valida",
+                            "type": "bool"
+                        },
+                        {
+                            "name": "nomeAdmin",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "idDestinatario",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 26,
+                    "lineNumber": 594,
+                    "name": "processaValidazioni",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idDestinatario",
+                            "type": "int"
+                        },
+                        {
+                            "name": "messaggio",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "idRiposoRif",
+                            "type": "int"
+                        },
+                        {
+                            "name": "nomeAdmin",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 27,
+                    "lineNumber": 633,
+                    "name": "inserisciNotifica",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idDestinatario",
+                            "type": "int"
+                        },
+                        {
+                            "name": "messaggio",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "idRiposoRif",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 28,
+                    "isCloned": true,
+                    "lineNumber": 633,
+                    "name": "inserisciNotifica",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idDestinatario",
+                            "type": "int"
+                        },
+                        {
+                            "name": "messaggio",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 29,
+                    "isCloned": true,
+                    "lineNumber": 633,
+                    "name": "inserisciNotifica",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idUtente",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 30,
+                    "lineNumber": 653,
+                    "name": "contaNotificheNonLette",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idUtente",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 31,
+                    "lineNumber": 684,
+                    "name": "caricaDettagliNotifiche",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idUtente",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 32,
+                    "lineNumber": 712,
+                    "name": "segnaNotificheComeLette",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 33,
+                    "lineNumber": 723,
+                    "name": "caricaLogAttivita",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idUtenteRichiedente",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "dataOperazioneISO",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 34,
+                    "lineNumber": 749,
+                    "name": "isOperazioneBloccata",
+                    "returnType": "bool"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "idUtenteRichiedente",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 35,
+                    "isCloned": true,
+                    "lineNumber": 749,
+                    "name": "isOperazioneBloccata",
+                    "returnType": "bool"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "utenti",
+                            "type": "QVariantList"
+                        },
+                        {
+                            "name": "dati",
+                            "type": "QVariantList"
+                        },
+                        {
+                            "name": "giorni",
+                            "type": "int"
+                        },
+                        {
+                            "name": "inizio",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "fine",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 36,
+                    "lineNumber": 769,
+                    "name": "generaPDF",
+                    "returnType": "void"
+                }
+            ],
+            "object": true,
+            "properties": [
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 0,
+                    "lineNumber": 119,
+                    "name": "inizioBlocco",
+                    "notify": "bloccoCambiato",
+                    "override": false,
+                    "read": "inizioBlocco",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false,
+                    "virtual": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 1,
+                    "lineNumber": 120,
+                    "name": "fineBlocco",
+                    "notify": "bloccoCambiato",
+                    "override": false,
+                    "read": "fineBlocco",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "QString",
+                    "user": false,
+                    "virtual": false
+                },
+                {
+                    "constant": false,
+                    "designable": true,
+                    "final": false,
+                    "index": 2,
+                    "lineNumber": 121,
+                    "name": "bloccoAttivo",
+                    "notify": "bloccoCambiato",
+                    "override": false,
+                    "read": "bloccoAttivo",
+                    "required": false,
+                    "scriptable": true,
+                    "stored": true,
+                    "type": "bool",
+                    "user": false,
+                    "virtual": false
+                }
+            ],
+            "qualifiedClassName": "DatabaseManager",
+            "signals": [
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "nomeCompleto",
+                            "type": "QString"
+                        },
+                        {
+                            "name": "idSeriale",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 0,
+                    "lineNumber": 781,
+                    "name": "loginSuccess",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "messaggio",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 1,
+                    "lineNumber": 782,
+                    "name": "loginError",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "lista",
+                            "type": "QVariantList"
+                        }
+                    ],
+                    "index": 2,
+                    "lineNumber": 783,
+                    "name": "riposiRicevuti",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "messaggio",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 3,
+                    "lineNumber": 784,
+                    "name": "operazioneCompletata",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "dati",
+                            "type": "QVariantMap"
+                        }
+                    ],
+                    "index": 4,
+                    "lineNumber": 785,
+                    "name": "confermaCancellazioneRichiesta",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "lista",
+                            "type": "QVariantList"
+                        },
+                        {
+                            "name": "giorniMese",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 5,
+                    "lineNumber": 786,
+                    "name": "specchioRicevuto",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "index": 6,
+                    "lineNumber": 787,
+                    "name": "bloccoCambiato",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "lista",
+                            "type": "QVariantList"
+                        }
+                    ],
+                    "index": 7,
+                    "lineNumber": 788,
+                    "name": "logRicevuti",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "lista",
+                            "type": "QVariantList"
+                        }
+                    ],
+                    "index": 8,
+                    "lineNumber": 789,
+                    "name": "richiesteBloccoRicevute",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "count",
+                            "type": "int"
+                        }
+                    ],
+                    "index": 9,
+                    "lineNumber": 790,
+                    "name": "notificheConteggiate",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "messaggio",
+                            "type": "QString"
+                        }
+                    ],
+                    "index": 10,
+                    "lineNumber": 791,
+                    "name": "erroreOperazione",
+                    "returnType": "void"
+                },
+                {
+                    "access": "public",
+                    "arguments": [
+                        {
+                            "name": "lista",
+                            "type": "QVariantList"
+                        }
+                    ],
+                    "index": 11,
+                    "lineNumber": 792,
+                    "name": "notificheRicevute",
+                    "returnType": "void"
+                }
+            ],
+            "superClasses": [
+                {
+                    "access": "public",
+                    "name": "QObject"
+                }
+            ]
+        }
+    ],
+    "inputFile": "databasemanager.h",
+    "outputRevision": 69
+}

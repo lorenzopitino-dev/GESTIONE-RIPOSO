@@ -1,0 +1,14 @@
+-rootPath
+C:/ProgettiQt/Gestione_Riposo
+-cmake-output
+-output-file
+C:/ProgettiQt/Gestione_Riposo/.qt/qml_imports/appGestione_Riposo_conf.cmake
+-importPath
+C:/ProgettiQt/Gestione_Riposo
+-importPath
+C:/ProgettiQt/Gestione_Riposo/Gestione_Riposo
+-importPath
+C:/Qt/6.11.0/wasm_singlethread/qml
+-qrcFiles
+C:/ProgettiQt/Gestione_Riposo/.qt/rcc/qmake_Gestione_Riposo.qrc
+C:/ProgettiQt/Gestione_Riposo/.qt/rcc/appGestione_Riposo_raw_qml_0.qrc
