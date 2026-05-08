@@ -1,2 +1,0 @@
-set(__QT_DEPLOY_TARGET_appGestione_Riposo_FILE C:/ProgettiQt/Gestione_Riposo/appGestione_Riposo.js)
-set(__QT_DEPLOY_TARGET_appGestione_Riposo_TYPE EXECUTABLE)
