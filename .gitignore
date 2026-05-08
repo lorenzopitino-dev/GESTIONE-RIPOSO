@@ -1,0 +1,52 @@
+# ─── Build artifacts ───────────────────────────────────────────────
+*.o
+*.a
+*.so
+*.dll
+*.exe
+*.wasm
+*.js
+*.js.map
+
+# ─── CMake ─────────────────────────────────────────────────────────
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+install_manifest.txt
+
+# ─── Ninja ─────────────────────────────────────────────────────────
+.ninja_deps
+.ninja_log
+build.ninja
+rules.ninja
+
+# ─── Qt generated ──────────────────────────────────────────────────
+*_autogen/
+.qt/
+.rcc/
+meta_types/
+*.qmlc
+*.jsc
+
+# ─── Qt Creator ────────────────────────────────────────────────────
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qbs.user.*
+*.creator.user
+CMakeLists.txt.user
+
+# ─── VS Code ───────────────────────────────────────────────────────
+.vscode/
+
+# ─── Emscripten cache ──────────────────────────────────────────────
+*.em
+*.bc
+*.symbols
+appGestione_Riposo_autogen/
+
+# ─── OS ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
