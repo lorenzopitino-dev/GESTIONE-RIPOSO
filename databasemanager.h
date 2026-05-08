@@ -776,6 +776,166 @@ public:
         emscripten_run_script(("window.__pdfFine = '"   + fine.toStdString()      + "';").c_str());
         emscripten_run_script("generaPDFSpecchio(window.__pdfUtenti, window.__pdfDati, window.__pdfGiorni, window.__pdfInizio, window.__pdfFine);");
     }
+    // --- STRAORDINARI ---
+
+    Q_INVOKABLE void caricaStraordinariMese(QString idUtente, int anno, int mese) {
+        QDate primoGiorno(anno, mese, 1);
+        QDate primoMeseSucc = primoGiorno.addMonths(1);
+        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/straordinari"
+                "?id_utente=eq." + idUtente +
+                "&data=gte." + primoGiorno.toString("yyyy-MM-dd") +
+                "&data=lt." + primoMeseSucc.toString("yyyy-MM-dd") +
+                "&order=data.desc");
+        QNetworkRequest request(url);
+        impostaHeader(request);
+
+        QNetworkReply* reply = manager->get(request);
+        connect(reply, &QNetworkReply::finished, [this, reply]() {
+            if (reply->error() == QNetworkReply::NoError) {
+                QJsonArray array = QJsonDocument::fromJson(reply->readAll()).array();
+                QVariantList lista;
+                double totale = 0.0;
+                for (const QJsonValue &v : array) {
+                    QJsonObject obj = v.toObject();
+                    QVariantMap item;
+                    item["id"]      = obj["id"].toInt();
+                    item["dataISO"] = obj["data"].toString();
+                    item["dataITA"] = QDate::fromString(obj["data"].toString(), "yyyy-MM-dd").toString("dd-MM-yyyy");
+                    item["ore"]     = obj["ore"].toDouble();
+                    item["oraInizio"] = obj["ora_inizio"].toString();
+                    item["oraFine"]   = obj["ora_fine"].toString();
+                    item["nota"]      = obj["nota"].toString();
+                    totale += obj["ore"].toDouble();
+                    lista.append(item);
+                }
+                emit straordinariRicevuti(lista, totale);
+            } else {
+                emit erroreOperazione("Errore caricamento straordinari: " + reply->errorString());
+            }
+            reply->deleteLater();
+        });
+    }
+
+
+    Q_INVOKABLE void salvaOreStraordinario(QString idUtente, QString dataISO,
+                                           QString oraInizio, QString oraFine, QString nota) {
+        QDate dataInserita = QDate::fromString(dataISO, "yyyy-MM-dd");
+        if (dataInserita > QDate::currentDate()) {
+            emit erroreOperazione("Non puoi inserire straordinari per una data futura!");
+            return;
+        }
+
+        if (isBloccoAdmin(idUtente, dataISO)) return;
+
+        QTime tInizio = QTime::fromString(oraInizio, "HH:mm");
+        QTime tFine   = QTime::fromString(oraFine,   "HH:mm");
+        if (!tInizio.isValid() || !tFine.isValid() || tFine <= tInizio) {
+            emit erroreOperazione("Orario non valido: l'ora di fine deve essere successiva all'ora di inizio!");
+            return;
+        }
+        double ore = tInizio.secsTo(tFine) / 3600.0;
+
+        // Prima controlla sovrapposizioni per quella data
+        QUrl checkUrl("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/straordinari"
+                      "?id_utente=eq." + idUtente +
+                      "&data=eq." + dataISO);
+        QNetworkRequest checkRequest(checkUrl);
+        impostaHeader(checkRequest);
+
+        QNetworkReply* checkReply = manager->get(checkRequest);
+        connect(checkReply, &QNetworkReply::finished, [this, checkReply, idUtente, dataISO,
+                oraInizio, oraFine, nota, ore, tInizio, tFine]() {
+
+            if (checkReply->error() == QNetworkReply::NoError) {
+                QJsonArray esistenti = QJsonDocument::fromJson(checkReply->readAll()).array();
+
+                // Controlla sovrapposizione con ogni riga esistente
+                for (const QJsonValue &v : esistenti) {
+                    QJsonObject obj = v.toObject();
+                    QTime eInizio = QTime::fromString(obj["ora_inizio"].toString(), "HH:mm");
+                    QTime eFine   = QTime::fromString(obj["ora_fine"].toString(),   "HH:mm");
+                    if (!eInizio.isValid() || !eFine.isValid()) continue;
+
+                    // Sovrapposizione: i due intervalli si toccano o si incrociano
+                    if (tInizio < eFine && tFine > eInizio) {
+                        emit erroreOperazione(
+                            "Sovrapposizione oraria! Hai già uno straordinario dalle " +
+                            obj["ora_inizio"].toString() + " alle " +
+                            obj["ora_fine"].toString() + " in questa data."
+                        );
+                        checkReply->deleteLater();
+                        return;
+                    }
+                }
+
+                // Nessuna sovrapposizione — procedi con l'inserimento
+                QJsonObject dati;
+                dati["id_utente"]  = idUtente.toInt();
+                dati["data"]       = dataISO;
+                dati["ore"]        = ore;
+                dati["ora_inizio"] = oraInizio;
+                dati["ora_fine"]   = oraFine;
+                if (!nota.isEmpty()) dati["nota"] = nota;
+
+                QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/straordinari");
+                QNetworkRequest request(url);
+                impostaHeader(request);
+
+                QNetworkReply* reply = manager->post(request, QJsonDocument(dati).toJson());
+                connect(reply, &QNetworkReply::finished, [this, reply]() {
+                    if (reply->error() == QNetworkReply::NoError) {
+                        emit operazioneCompletata("Salvato!");
+                    } else {
+                        emit erroreOperazione("Errore salvataggio: " + reply->errorString());
+                    }
+                    reply->deleteLater();
+                });
+
+            } else {
+                emit erroreOperazione("Errore verifica sovrapposizioni: " + checkReply->errorString());
+            }
+            checkReply->deleteLater();
+        });
+    }
+
+    Q_INVOKABLE void eliminaStraordinario(int id) {
+        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/straordinari?id=eq." + QString::number(id));
+        QNetworkRequest request(url);
+        impostaHeader(request);
+
+        QNetworkReply* reply = manager->sendCustomRequest(request, "DELETE", QByteArray());
+        connect(reply, &QNetworkReply::finished, [this, reply]() {
+            if (reply->error() == QNetworkReply::NoError) {
+                emit operazioneCompletata("Eliminato!");
+            } else {
+                emit erroreOperazione("Errore eliminazione: " + reply->errorString());
+            }
+            reply->deleteLater();
+        });
+    }
+    // Funzione separata SOLO per il badge del menu (mese corrente)
+    Q_INVOKABLE void caricaOreBadgeMenu(QString idUtente, int anno, int mese) {
+        QDate primoGiorno(anno, mese, 1);
+        QDate primoMeseSucc = primoGiorno.addMonths(1);
+        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/straordinari"
+                 "?id_utente=eq." + idUtente +
+                 "&data=gte." + primoGiorno.toString("yyyy-MM-dd") +
+                 "&data=lt." + primoMeseSucc.toString("yyyy-MM-dd"));
+        QNetworkRequest request(url);
+        impostaHeader(request);
+        QNetworkReply* reply = manager->get(request);
+        connect(reply, &QNetworkReply::finished, [this, reply]() {
+            if (reply->error() == QNetworkReply::NoError) {
+                QJsonArray array = QJsonDocument::fromJson(reply->readAll()).array();
+                double totale = 0.0;
+                for (const QJsonValue &v : array)
+                    totale += v.toObject()["ore"].toDouble();
+                emit oreBadgeMenuRicevute(totale);
+            }
+            reply->deleteLater();
+        });
+    }
+
 
 signals:
     void loginSuccess(QString nomeCompleto, QString idSeriale);
@@ -786,10 +946,12 @@ signals:
     void specchioRicevuto(QVariantList lista, int giorniMese);
     void bloccoCambiato();
     void logRicevuti(QVariantList lista);
+    void straordinariRicevuti(QVariantList lista, double totale);
     void richiesteBloccoRicevute(QVariantList lista);
     void notificheConteggiate(int count);
     void erroreOperazione(QString messaggio);
     void notificheRicevute(QVariantList lista);
+    void oreBadgeMenuRicevute(double totaleOre);
 
 private:
     bool m_bloccoAttivo = false;

@@ -119,6 +119,7 @@ Window {
             property bool mostraNotifica: window.haNotificheGlobal
             property int conteggioNotifiche: window.notificheCount
             property var listaNotifiche: null
+            property double oreStrMese: 0.0
             readonly property var adminIDs: ["1", "2", "3", "19"]
 
             header: ToolBar {
@@ -209,6 +210,8 @@ Window {
                 Qt.callLater(function() {
                     if (idDatabase !== "") {
                         Backend.contaNotificheNonLette(parseInt(idDatabase));
+                        let oggi = new Date();
+                        Backend.caricaOreBadgeMenu(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1)
                     }
                 });
             }
@@ -220,6 +223,8 @@ Window {
                 onTriggered: {
                     if (idDatabase !== "") {
                         Backend.contaNotificheNonLette(parseInt(idDatabase))
+                        let oggi = new Date();
+                        Backend.caricaOreBadgeMenu(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1)
                     }
                 }
             }
@@ -233,6 +238,13 @@ Window {
                 function onNotificheRicevute(lista) {
                     paginaMenu.listaNotifiche = lista
                 }
+                function onOreBadgeMenuRicevute(totaleOre) {
+                    paginaMenu.oreStrMese = totaleOre
+                }
+                function onOperazioneCompletata(messaggio) {
+                    let oggi = new Date();
+                    Backend.caricaOreBadgeMenu(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1)
+                }
             }
 
             ColumnLayout {
@@ -240,13 +252,65 @@ Window {
                 spacing: 15
                 width: parent.width * 0.8
 
-                Label {
-                    text: "Benvenuto, " + paginaMenu.utente
-                    horizontalAlignment: Text.AlignHCenter
+                Item {
                     Layout.fillWidth: true
-                    font.pixelSize: 18
-                    color: "#333"
+                    height: 200
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 6
+                        AnimatedImage {
+                            id: animalCanvas
+                            width: 130
+                            height: 130
+                            fillMode: Image.PreserveAspectFit
+                            playing: true
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            source: {
+                                let ore = paginaMenu.oreStrMese
+                                if (ore <= 5)   return "https://media0.giphy.com/media/1xkMJIvxeKiDS/giphy.gif"
+                                if (ore <= 15)  return "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExamJodGhxMWttcmJkcDIxYzZhYXoyM3h0dnFpOW55bjg3d3F2MXNrNiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l3fZPYrlEGoSLvq9O/giphy.gif"
+                                if (ore <= 30)  return "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExOWhtdm45YW1kdDB2MThhZmdndDI5N2ZrM2hxZHFoc2NrYjQ0NGpwcyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/R8bcfuGTZONyw/giphy.gif"
+                                return          "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExbjl1ZXBkMHc3ZTdoNzYyb2tyYXdwbjFuaXF2dnd3NzVtc2FtcDd0YyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/7lz6nPd56aHh6/giphy.gif"
+                            }
+                        }
+                        Label {
+                            text: "Benvenuto, " + paginaMenu.utente
+                            horizontalAlignment: Text.AlignHCenter
+                            width: parent.width
+                            font.pixelSize: 18
+                            color: "#333"
+                        }
+                        Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: 180
+                            height: 28
+                            radius: 14
+                            color: {
+                                let ore = paginaMenu.oreStrMese
+                                if (ore <= 0)   return "#888888"
+                                if (ore <= 5)   return "#b87333"  // Rame
+                                if (ore <= 15)  return "#C0C0C0"  // Argento
+                                if (ore <= 30)  return "#FFD700"  // Oro
+                                return "#b9f2ff"                   // Diamante (azzurro ghiaccio)
+                            }
+							Text {
+								font.pixelSize: 11
+								font.bold: true
+								anchors.verticalCenter: parent.verticalCenter
+								color: paginaMenu.oreStrMese > 30 ? "#1a6080" : "white"
+								text: {
+									let ore = paginaMenu.oreStrMese
+									if (ore <= 0)   return "  Nessuno straordinario"
+									if (ore <= 5)   return "  Bradipo  " + ore.toFixed(1) + "h"
+									if (ore <= 15)  return "  Cammello  " + ore.toFixed(1) + "h"
+									if (ore <= 30)  return "  Cavallo  " + ore.toFixed(1) + "h"
+									return "  Ghepardo  " + ore.toFixed(1) + "h"
+								}
+							}
+                        }
+                    }
                 }
+
                 Label {
                     text: "⚠️ MODIFICHE BLOCCATE DALL'ADMIN"
                     color: "red"
@@ -260,6 +324,11 @@ Window {
                     text: "REPORT"
                     Layout.fillWidth: true
                     onClicked: stack.push(reportPage, {"idDatabase": paginaMenu.idDatabase})
+                }
+                Button {
+                    text: "STRAORDINARI"
+                    Layout.fillWidth: true
+                    onClicked: stack.push(straordinariPage, {"idDatabase": paginaMenu.idDatabase})
                 }
 
                 Button {
@@ -1646,7 +1715,339 @@ Window {
             }
         }
     }
+    Component {
+        id: straordinariPage
+        Page {
+            id: paginaStraordinari
+            property string idDatabase: ""
+            property var listaStraordinari: []
+            property double totaleOre: 0.0
 
+            function ricarica() {
+                let anno = parseInt(comboAnnoStr.currentText)
+                let mese = comboMeseStr.currentIndex + 1
+                if (isNaN(anno)) return
+                Backend.caricaStraordinariMese(idDatabase, anno, mese)
+            }
+
+            Connections {
+                target: Backend
+                function onStraordinariRicevuti(lista, totale) {
+                    paginaStraordinari.listaStraordinari = lista
+                    paginaStraordinari.totaleOre = totale
+                }
+                function onOperazioneCompletata(messaggio) {
+                    paginaStraordinari.ricarica()
+                }
+            }
+
+            Component.onCompleted: {
+                let oggi = new Date()
+                Backend.caricaStraordinariMese(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1)
+            }
+
+            header: ToolBar {
+                RowLayout {
+                    anchors.fill: parent
+                    ToolButton { text: "‹"; onClicked: stack.pop() }
+                    Label {
+                        text: "Straordinari"
+                        font.bold: true
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    ComboBox {
+                        id: comboMeseStr
+                        Layout.preferredWidth: 110
+                        model: ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
+                                "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"]
+                        Component.onCompleted: currentIndex = new Date().getMonth()
+                        onActivated: paginaStraordinari.ricarica()
+                    }
+                    ComboBox {
+                        id: comboAnnoStr
+                        Layout.preferredWidth: 80
+                        model: {
+                            let a = []; let y = new Date().getFullYear()
+                            for (let i = y - 1; i <= y + 1; i++) a.push(i.toString())
+                            return a
+                        }
+                        Component.onCompleted: {
+                            let y = new Date().getFullYear().toString()
+                            for (let i = 0; i < model.length; i++)
+                                if (model[i] === y) { currentIndex = i; break }
+                        }
+                        onActivated: paginaStraordinari.ricarica()
+                    }
+                }
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 10
+
+                // --- BADGE ANIMATO ---
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 100
+                    radius: 12
+                    color: {
+                        let ore = paginaStraordinari.totaleOre
+                        if (ore <= 0)   return "#eeeeee"
+                        if (ore <= 5)   return "#f5deb3"
+                        if (ore <= 15)  return "#e8e8e8"
+                        if (ore <= 30)  return "#fff9c4"
+                        return "#e0f7fa"
+                    }
+                    border.color: Qt.darker(color, 1.2)
+                    border.width: 2
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 12
+
+                        AnimatedImage {
+                            id: animalCanvasStr
+                            width: 80
+                            height: 80
+                            fillMode: Image.PreserveAspectFit
+                            playing: true
+                            source: {
+                                let ore = paginaStraordinari.totaleOre
+                                if (ore <= 5)   return "https://media0.giphy.com/media/1xkMJIvxeKiDS/giphy.gif"
+                                if (ore <= 15)  return "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExamJodGhxMWttcmJkcDIxYzZhYXoyM3h0dnFpOW55bjg3d3F2MXNrNiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l3fZPYrlEGoSLvq9O/giphy.gif"
+                                if (ore <= 30)  return "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExOWhtdm45YW1kdDB2MThhZmdndDI5N2ZrM2hxZHFoc2NrYjQ0NGpwcyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/R8bcfuGTZONyw/giphy.gif"
+                                return          "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExbjl1ZXBkMHc3ZTdoNzYyb2tyYXdwbjFuaXF2dnd3NzVtc2FtcDd0YyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/7lz6nPd56aHh6/giphy.gif"
+                            }
+                            SequentialAnimation on y {
+                                loops: Animation.Infinite
+                                running: true
+                                NumberAnimation { to: -6; duration: 500; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 0;  duration: 500; easing.type: Easing.InOutSine }
+                            }
+                        }
+
+                        Column {
+                            spacing: 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            Text {
+                                font.pixelSize: 20
+                                font.bold: true
+                                text: paginaStraordinari.totaleOre.toFixed(1) + " ore totali"
+                                color: "#333"
+                            }
+                            Text {
+                                font.pixelSize: 12
+                                color: "#666"
+                                text: {
+                                    let ore = paginaStraordinari.totaleOre
+                                    if (ore <= 0)   return "Nessuno straordinario questo mese"
+                                    if (ore <= 5)   return "Livello: Bradipo (0-5h) - Rame"
+                                    if (ore <= 15)  return "Livello: Cammello (6-15h) - Argento"
+                                    if (ore <= 30)  return "Livello: Cavallo (16-30h) - Oro"
+                                    return "Livello: Ghepardo (30+h) - Diamante"
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- FORM INSERIMENTO ---
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 170
+                    radius: 8
+                    color: "#f9f9f9"
+                    border.color: "#ddd"
+                    border.width: 1
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 6
+
+                        Label { text: "INSERISCI ORE GIORNALIERE"; font.bold: true; font.pixelSize: 12; color: "#2196F3" }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            DateMaskField {
+                                id: campoDataStr
+                                Layout.fillWidth: true
+                                placeholderText: "GG-MM-AAAA"
+                                Component.onCompleted: {
+                                    let d = new Date()
+                                    let gg = d.getDate().toString().padStart(2,'0')
+                                    let mm = (d.getMonth()+1).toString().padStart(2,'0')
+                                    let aa = d.getFullYear()
+                                    text = gg + "-" + mm + "-" + aa
+                                }
+                            }
+
+                            Label { text: "Dalle:" }
+                            TextField {
+                                id: campoOraInizio
+                                Layout.preferredWidth: 75
+                                placeholderText: "HH:MM"
+                                inputMethodHints: Qt.ImhDigitsOnly
+                                maximumLength: 5
+                                onTextChanged: {
+                                    let raw = text.replace(/[^0-9]/g, "")
+                                    let masked = raw.length >= 3 ? raw.slice(0,2) + ":" + raw.slice(2,4) : raw
+                                    if (text !== masked) text = masked
+                                }
+                            }
+
+                            Label { text: "Alle:" }
+                            TextField {
+                                id: campoOraFine
+                                Layout.preferredWidth: 75
+                                placeholderText: "HH:MM"
+                                inputMethodHints: Qt.ImhDigitsOnly
+                                maximumLength: 5
+                                onTextChanged: {
+                                    let raw = text.replace(/[^0-9]/g, "")
+                                    let masked = raw.length >= 3 ? raw.slice(0,2) + ":" + raw.slice(2,4) : raw
+                                    if (text !== masked) text = masked
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            TextField {
+                                id: campoNota
+                                Layout.fillWidth: true
+                                placeholderText: "Nota / motivazione (opzionale)"
+                            }
+
+                            // Preview ore calcolate in tempo reale
+                            Label {
+                                text: {
+                                    let ini = campoOraInizio.text
+                                    let fin = campoOraFine.text
+                                    if (ini.length === 5 && fin.length === 5) {
+                                        let [h1, m1] = ini.split(":").map(Number)
+                                        let [h2, m2] = fin.split(":").map(Number)
+                                        let minTot = (h2 * 60 + m2) - (h1 * 60 + m1)
+                                        if (minTot > 0)
+                                            return "= " + (minTot / 60).toFixed(2) + "h"
+                                    }
+                                    return ""
+                                }
+                                font.bold: true
+                                color: "#2196F3"
+                            }
+
+                            Button {
+                                text: "SALVA"
+                                highlighted: true
+                                onClicked: {
+                                    let parti = campoDataStr.text.split("-")
+                                    if (parti.length !== 3) {
+                                        globalErrorLabel.text = "Inserisci una data valida."
+                                        globalErrorPopup.open()
+                                        return
+                                    }
+                                    if (campoOraInizio.text.length !== 5 || campoOraFine.text.length !== 5) {
+                                        globalErrorLabel.text = "Inserisci orario di inizio e fine nel formato HH:MM."
+                                        globalErrorPopup.open()
+                                        return
+                                    }
+                                    let dataISO = parti[2] + "-" + parti[1] + "-" + parti[0]
+                                    Backend.salvaOreStraordinario(
+                                        idDatabase, dataISO,
+                                        campoOraInizio.text,
+                                        campoOraFine.text,
+                                        campoNota.text
+                                    )
+                                    campoOraInizio.text = ""
+                                    campoOraFine.text = ""
+                                    campoNota.text = ""
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- LISTA ---
+                ListView {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    model: paginaStraordinari.listaStraordinari
+
+                    header: Item { height: 4 }
+
+                    delegate: Rectangle {
+                        width: parent.width
+                        height: modelData.nota !== "" || modelData.oraInizio !== "" ? 68 : 48
+                        color: index % 2 === 0 ? "#fafafa" : "white"
+                        border.color: "#eeeeee"
+                        border.width: 1
+                        radius: 4
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 4
+                            anchors.bottomMargin: 4
+                            spacing: 2
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "📅 " + modelData.dataITA
+                                    font.pixelSize: 14
+                                    font.bold: true
+                                    color: "#333"
+                                    Layout.fillWidth: true
+                                }
+                                Text {
+                                    text: modelData.oraInizio !== "" ? modelData.oraInizio + " → " + modelData.oraFine : ""
+                                    font.pixelSize: 12
+                                    color: "#888"
+                                }
+                                Text {
+                                    text: modelData.ore.toFixed(1) + " h"
+                                    font.pixelSize: 16
+                                    font.bold: true
+                                    color: "#2196F3"
+                                }
+                                ToolButton {
+                                    text: "🗑"
+                                    font.pixelSize: 16
+                                    onClicked: Backend.eliminaStraordinario(modelData.id)
+                                }
+                            }
+
+                            Text {
+                                visible: modelData.nota !== ""
+                                text: "📝 " + modelData.nota
+                                font.pixelSize: 11
+                                color: "#666"
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                        }
+                    }
+                }
+
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "Nessuno straordinario registrato"
+                    visible: paginaStraordinari.listaStraordinari.length === 0
+                    color: "gray"
+                }
+
+            }   // chiude ColumnLayout
+        }   // chiude Page
+    }   // chiude Component
     Popup {
         id: popupConfigBlocco
         anchors.centerIn: parent
