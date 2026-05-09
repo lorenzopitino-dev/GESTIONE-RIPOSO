@@ -8,6 +8,7 @@ Window {
     id: window
     width: 360
     height: 640
+    visibility: Window.Maximized
     visible: true
     title: "Gestore Riposi"
     property bool haNotificheGlobal: false
@@ -1088,355 +1089,361 @@ Window {
                 }
 
                 background: Rectangle { radius: 12; color: "white"; border.color: "#1565C0"; border.width: 2 }
-
-                ColumnLayout {
+                
+                ScrollView {
                     anchors.fill: parent
                     anchors.margins: 14
-                    spacing: 14
+                    clip: true
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
-                    // INTESTAZIONE
-                    Label {
-                        text: " MIO PROFILO"
-                        font.bold: true
-                        font.pixelSize: 18
-                        color: "#1565C0"
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-                    Rectangle { height: 1; Layout.fillWidth: true; color: "#1565C0"; opacity: 0.3 }
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: 14
 
-                    // BADGE MESE CORRENTE IN PRIMO PIANO
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 70
-                        radius: 10
-                        color: paginaMenu.badgeCorrente.colore !== "" ? paginaMenu.badgeCorrente.colore : "#eeeeee"
-                        border.color: paginaMenu.badgeCorrente.livello === 3 ? "#00bcd4" : Qt.darker(paginaMenu.badgeCorrente.colore || "#aaa", 1.3)
-                        border.width: 2
-                        visible: paginaMenu.badgeCorrente.livello > 0
-
-                        SequentialAnimation on border.color {
-                            loops: Animation.Infinite
-                            running: paginaMenu.badgeCorrente.livello === 3
-                            ColorAnimation { to: "#00bcd4"; duration: 900 }
-                            ColorAnimation { to: "#e0f7fa"; duration: 900 }
-                        }
-
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 12
-
-                            AnimatedImage {
-                                width: 54; height: 54
-                                fillMode: Image.PreserveAspectFit
-                                playing: popupProfilo.visible
-                                source: popupProfilo.visible && paginaMenu.badgeCorrente.nome !== ""
-                                        ? popupDettaglioBadge.gifPerBadge(paginaMenu.badgeCorrente.nome) : ""
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-
-                            Column {
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
-                                Text {
-                                    text: paginaMenu.badgeCorrente.nome
-                                    font.pixelSize: 20; font.bold: true
-                                    color: paginaMenu.badgeCorrente.livello === 3 ? "#003344" : "white"
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                }
-                                Text {
-                                    text: "BADGE DEL MESE  •  " + (
-                                        paginaMenu.badgeCorrente.livello === 1 ? "▲ ARGENTO"
-                                        : paginaMenu.badgeCorrente.livello === 2 ? "★ ORO"
-                                        : "◆ DIAMANTE")
-                                    font.pixelSize: 11
-                                    color: paginaMenu.badgeCorrente.livello === 3 ? "#005577" : "white"
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    opacity: 0.9
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
-
-                    // STORICO BADGE ANNO
-                    Label {
-                        text: "BADGE GUADAGNATI QUEST'ANNO"
-                        font.bold: true
-                        font.pixelSize: 13
-                        color: "#333"
-                    }
-                    ListView {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Math.min(popupProfilo.badgeAggregati.length * 38 + 4, 120)
-                        clip: true
-                        model: popupProfilo.badgeAggregati
-                        delegate: Rectangle {
-                            width: parent.width
-                            height: 34
-                            radius: 6
-                            color: index % 2 === 0 ? "#f5f8ff" : "white"
-                            border.color: "#e0e0e0"
-                            border.width: 1
-                            Row {
-                                anchors.fill: parent
-                                anchors.margins: 8
-                                spacing: 10
-                                Text { text: modelData.nome; font.bold: true; font.pixelSize: 13; color: "#222"; anchors.verticalCenter: parent.verticalCenter }
-                                Text { text: "x" + modelData.count + " volte"; font.pixelSize: 12; color: "#1565C0"; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    popupDettaglioBadge.nomeBadge = modelData.nome
-                                    popupDettaglioBadge.livelloBadge = modelData.livello
-                                    popupDettaglioBadge.coloreBadge = modelData.colore
-                                    popupDettaglioBadge.open()
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
-
-                    // STRAORDINARI ANNUALI / MESE
-                    Label {
-                        text: popupProfilo.meseFiltroSelezionato === -1 ? "STRAORDINARI QUEST'ANNO" : "STRAORDINARI DEL MESE"
-                        font.bold: true
-                        font.pixelSize: 13
-                        color: "#333"
-                    }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 40
-                        radius: 8
-                        color: "#E3F2FD"
-                        border.color: "#2196F3"
-                        border.width: 1
-                        Text {
-                            anchors.centerIn: parent
-                            text: popupProfilo.meseFiltroSelezionato === -1
-                                  ? popupProfilo.oreStrAnnuali.toFixed(1) + " ore totali"
-                                  : popupProfilo.oreStrMeseFiltrato.toFixed(1) + " ore"
-                            font.bold: true
-                            font.pixelSize: 15
-                            color: "#1565C0"
-                        }
-                    }
-
-                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
-
-                    // RIPOSI PER TIPO — label + pulsante reset
-                    RowLayout {
-                        Layout.fillWidth: true
+                        // INTESTAZIONE
                         Label {
-                            text: "RIPOSI FRUITI QUEST'ANNO PER TIPO"
+                            text: " MIO PROFILO"
+                            font.bold: true
+                            font.pixelSize: 18
+                            color: "#1565C0"
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                        Rectangle { height: 1; Layout.fillWidth: true; color: "#1565C0"; opacity: 0.3 }
+
+                        // BADGE MESE CORRENTE IN PRIMO PIANO
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 70
+                            radius: 10
+                            color: paginaMenu.badgeCorrente.colore !== "" ? paginaMenu.badgeCorrente.colore : "#eeeeee"
+                            border.color: paginaMenu.badgeCorrente.livello === 3 ? "#00bcd4" : Qt.darker(paginaMenu.badgeCorrente.colore || "#aaa", 1.3)
+                            border.width: 2
+                            visible: paginaMenu.badgeCorrente.livello > 0
+
+                            SequentialAnimation on border.color {
+                                loops: Animation.Infinite
+                                running: paginaMenu.badgeCorrente.livello === 3
+                                ColorAnimation { to: "#00bcd4"; duration: 900 }
+                                ColorAnimation { to: "#e0f7fa"; duration: 900 }
+                            }
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 12
+
+                                AnimatedImage {
+                                    width: 54; height: 54
+                                    fillMode: Image.PreserveAspectFit
+                                    playing: popupProfilo.visible
+                                    source: popupProfilo.visible && paginaMenu.badgeCorrente.nome !== ""
+                                            ? popupDettaglioBadge.gifPerBadge(paginaMenu.badgeCorrente.nome) : ""
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+
+                                Column {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 2
+                                    Text {
+                                        text: paginaMenu.badgeCorrente.nome
+                                        font.pixelSize: 20; font.bold: true
+                                        color: paginaMenu.badgeCorrente.livello === 3 ? "#003344" : "white"
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                    }
+                                    Text {
+                                        text: "BADGE DEL MESE  •  " + (
+                                            paginaMenu.badgeCorrente.livello === 1 ? "▲ ARGENTO"
+                                            : paginaMenu.badgeCorrente.livello === 2 ? "★ ORO"
+                                            : "◆ DIAMANTE")
+                                        font.pixelSize: 11
+                                        color: paginaMenu.badgeCorrente.livello === 3 ? "#005577" : "white"
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        opacity: 0.9
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                        // STORICO BADGE ANNO
+                        Label {
+                            text: "BADGE GUADAGNATI QUEST'ANNO"
                             font.bold: true
                             font.pixelSize: 13
                             color: "#333"
+                        }
+                        ListView {
                             Layout.fillWidth: true
-                        }
-                        Rectangle {
-                            visible: popupProfilo.meseFiltroSelezionato !== -1
-                            width: 60
-                            height: 22
-                            radius: 5
-                            color: "#e53935"
-                            Text { anchors.centerIn: parent; text: "✕ TUTTI"; font.pixelSize: 10; font.bold: true; color: "white" }
-                            MouseArea { anchors.fill: parent; onClicked: popupProfilo.meseFiltroSelezionato = -1 }
-                        }
-                    }
-
-                    // GRIGLIA MESI
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: 6
-                        rowSpacing: 4
-                        columnSpacing: 4
-                        Repeater {
-                            model: [
-                                { n: 1,  label: "GEN" }, { n: 2,  label: "FEB" },
-                                { n: 3,  label: "MAR" }, { n: 4,  label: "APR" },
-                                { n: 5,  label: "MAG" }, { n: 6,  label: "GIU" },
-                                { n: 7,  label: "LUG" }, { n: 8,  label: "AGO" },
-                                { n: 9,  label: "SET" }, { n: 10, label: "OTT" },
-                                { n: 11, label: "NOV" }, { n: 12, label: "DIC" }
-                            ]
+                            Layout.preferredHeight: Math.min(popupProfilo.badgeAggregati.length * 38 + 4, 120)
+                            clip: true
+                            model: popupProfilo.badgeAggregati
                             delegate: Rectangle {
-                                Layout.fillWidth: true
-                                height: 28
+                                width: parent.width
+                                height: 34
                                 radius: 6
-                                color: popupProfilo.meseFiltroSelezionato === modelData.n ? "#1565C0" : "#E3F2FD"
-                                border.color: popupProfilo.meseFiltroSelezionato === modelData.n ? "#0D47A1" : "#90CAF9"
+                                color: index % 2 === 0 ? "#f5f8ff" : "white"
+                                border.color: "#e0e0e0"
                                 border.width: 1
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData.label
-                                    font.pixelSize: 11
-                                    font.bold: popupProfilo.meseFiltroSelezionato === modelData.n
-                                    color: popupProfilo.meseFiltroSelezionato === modelData.n ? "white" : "#1565C0"
+                                Row {
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 10
+                                    Text { text: modelData.nome; font.bold: true; font.pixelSize: 13; color: "#222"; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: "x" + modelData.count + " volte"; font.pixelSize: 12; color: "#1565C0"; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
                                 }
                                 MouseArea {
                                     anchors.fill: parent
                                     onClicked: {
-                                        if (popupProfilo.meseFiltroSelezionato === modelData.n)
-                                            popupProfilo.meseFiltroSelezionato = -1
-                                        else
-                                            popupProfilo.meseFiltroSelezionato = modelData.n
+                                        popupDettaglioBadge.nomeBadge = modelData.nome
+                                        popupDettaglioBadge.livelloBadge = modelData.livello
+                                        popupDettaglioBadge.coloreBadge = modelData.colore
+                                        popupDettaglioBadge.open()
                                     }
                                 }
                             }
                         }
-                    }
 
-                    // LABEL MESE ATTIVO
-                    Label {
-                        visible: popupProfilo.meseFiltroSelezionato !== -1
-                        text: {
-                            var nomi = ["","Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
-                                        "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"]
-                            return " Dati di " + nomi[popupProfilo.meseFiltroSelezionato]
-                        }
-                        font.pixelSize: 11
-                        font.bold: true
-                        color: "#1565C0"
-                        Layout.alignment: Qt.AlignHCenter
-                    }
+                        Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
 
-                    // BADGE DEL MESE SELEZIONATO
-                    Label {
-                        visible: popupProfilo.meseFiltroSelezionato !== -1
-                        text: "Badge del mese:"
-                        font.pixelSize: 12
-                        font.bold: true
-                        color: "#555"
-                    }
-                    ListView {
-                        visible: popupProfilo.meseFiltroSelezionato !== -1
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: {
-                            var n = popupProfilo.storicoBadge.filter(function(b) {
-                                return b.mese === popupProfilo.meseFiltroSelezionato
-                            }).length
-                            return n === 0 ? 30 : Math.min(n * 38 + 4, 120)
-                        }
-                        clip: true
-                        model: popupProfilo.storicoBadge.filter(function(b) {
-                            return b.mese === popupProfilo.meseFiltroSelezionato
-                        })
-                        delegate: Rectangle {
-                            width: parent.width
-                            height: 34
-                            radius: 6
-                            color: index % 2 === 0 ? "#f5f8ff" : "white"
-                            border.color: "#e0e0e0"
-                            border.width: 1
-                            Row {
-                                anchors.fill: parent
-                                anchors.margins: 8
-                                spacing: 10
-                                Rectangle {
-                                    width: badgeTxt.width + 16
-                                    height: 22
-                                    radius: 5
-                                    color: modelData.colore
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Text {
-                                        id: badgeTxt
-                                        anchors.centerIn: parent
-                                        text: modelData.nome_badge
-                                        font.pixelSize: 11
-                                        font.bold: true
-                                        color: modelData.livello === 3 ? "#003344" : "white"
-                                    }
-                                }
-                                Text {
-                                    text: modelData.livello === 1 ? "▲ ARGENTO"
-                                        : modelData.livello === 2 ? "★ ORO"
-                                        : "◆ DIAMANTE"
-                                    font.pixelSize: 11
-                                    color: "#888"
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    popupDettaglioBadge.nomeBadge = modelData.nome_badge
-                                    popupDettaglioBadge.livelloBadge = modelData.livello
-                                    popupDettaglioBadge.coloreBadge = modelData.colore
-                                    popupDettaglioBadge.open()
-                                }
-                            }
-                        }
+                        // STRAORDINARI ANNUALI / MESE
                         Label {
-                            anchors.centerIn: parent
-                            visible: popupProfilo.storicoBadge.filter(function(b) {
-                                return b.mese === popupProfilo.meseFiltroSelezionato
-                            }).length === 0
-                            text: "Nessun badge questo mese"
-                            color: "gray"
-                            font.pixelSize: 11
+                            text: popupProfilo.meseFiltroSelezionato === -1 ? "STRAORDINARI QUEST'ANNO" : "STRAORDINARI DEL MESE"
+                            font.bold: true
+                            font.pixelSize: 13
+                            color: "#333"
                         }
-                    }
-
-                    // RIPOSI PER TIPO (filtrati)
-                    ListView {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        model: {
-                            var mappa = {}
-                            var filtroMese = popupProfilo.meseFiltroSelezionato
-                            for (var j = 0; j < popupProfilo.riposiAnnuali.length; j++) {
-                                var r = popupProfilo.riposiAnnuali[j]
-                                var nota = (r.a || "").toUpperCase()
-                                if (nota.includes("MAT") || nota.includes("CIT") ||
-                                    nota.includes("POM") || nota.includes("SER")) continue
-                                if (filtroMese !== -1) {
-                                    var parti = (r.data || "").split("-")
-                                    if (parti.length < 2 || parseInt(parti[1]) !== filtroMese) continue
-                                }
-                                var tipo = r.tipo || "SCONOSCIUTO"
-                                mappa[tipo] = (mappa[tipo] || 0) + 1
-                            }
-                            return Object.keys(mappa).map(function(k) {
-                                return { tipo: k, count: mappa[k] }
-                            })
-                        }
-                        delegate: Rectangle {
-                            width: parent.width
-                            height: 34
-                            radius: 6
-                            color: index % 2 === 0 ? "#f5f8ff" : "white"
-                            border.color: "#e0e0e0"
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 40
+                            radius: 8
+                            color: "#E3F2FD"
+                            border.color: "#2196F3"
                             border.width: 1
-                            Row {
-                                anchors.fill: parent
-                                anchors.margins: 8
-                                spacing: 10
-                                Text {
-                                    text: modelData.tipo
-                                    font.pixelSize: 12
-                                    color: "#444"
-                                    anchors.verticalCenter: parent.verticalCenter
+                            Text {
+                                anchors.centerIn: parent
+                                text: popupProfilo.meseFiltroSelezionato === -1
+                                    ? popupProfilo.oreStrAnnuali.toFixed(1) + " ore totali"
+                                    : popupProfilo.oreStrMeseFiltrato.toFixed(1) + " ore"
+                                font.bold: true
+                                font.pixelSize: 15
+                                color: "#1565C0"
+                            }
+                        }
+
+                        Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                        // RIPOSI PER TIPO — label + pulsante reset
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Label {
+                                text: "RIPOSI FRUITI QUEST'ANNO PER TIPO"
+                                font.bold: true
+                                font.pixelSize: 13
+                                color: "#333"
+                                Layout.fillWidth: true
+                            }
+                            Rectangle {
+                                visible: popupProfilo.meseFiltroSelezionato !== -1
+                                width: 60
+                                height: 22
+                                radius: 5
+                                color: "#e53935"
+                                Text { anchors.centerIn: parent; text: "✕ TUTTI"; font.pixelSize: 10; font.bold: true; color: "white" }
+                                MouseArea { anchors.fill: parent; onClicked: popupProfilo.meseFiltroSelezionato = -1 }
+                            }
+                        }
+
+                        // GRIGLIA MESI
+                        GridLayout {
+                            Layout.fillWidth: true
+                            columns: parent.width > 350 ? 6 : 4
+                            rowSpacing: 4
+                            columnSpacing: 4
+                            Repeater {
+                                model: [
+                                    { n: 1,  label: "GEN" }, { n: 2,  label: "FEB" },
+                                    { n: 3,  label: "MAR" }, { n: 4,  label: "APR" },
+                                    { n: 5,  label: "MAG" }, { n: 6,  label: "GIU" },
+                                    { n: 7,  label: "LUG" }, { n: 8,  label: "AGO" },
+                                    { n: 9,  label: "SET" }, { n: 10, label: "OTT" },
+                                    { n: 11, label: "NOV" }, { n: 12, label: "DIC" }
+                                ]
+                                delegate: Rectangle {
                                     Layout.fillWidth: true
-                                }
-                                Text {
-                                    text: modelData.count + " giorni"
-                                    font.bold: true
-                                    font.pixelSize: 12
-                                    color: "#388E3C"
-                                    anchors.verticalCenter: parent.verticalCenter
+                                    height: 28
+                                    radius: 6
+                                    color: popupProfilo.meseFiltroSelezionato === modelData.n ? "#1565C0" : "#E3F2FD"
+                                    border.color: popupProfilo.meseFiltroSelezionato === modelData.n ? "#0D47A1" : "#90CAF9"
+                                    border.width: 1
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        font.pixelSize: 11
+                                        font.bold: popupProfilo.meseFiltroSelezionato === modelData.n
+                                        color: popupProfilo.meseFiltroSelezionato === modelData.n ? "white" : "#1565C0"
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            if (popupProfilo.meseFiltroSelezionato === modelData.n)
+                                                popupProfilo.meseFiltroSelezionato = -1
+                                            else
+                                                popupProfilo.meseFiltroSelezionato = modelData.n
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    Button {
-                        text: "CHIUDI"
-                        Layout.fillWidth: true
-                        onClicked: popupProfilo.close()
+                        // LABEL MESE ATTIVO
+                        Label {
+                            visible: popupProfilo.meseFiltroSelezionato !== -1
+                            text: {
+                                var nomi = ["","Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
+                                            "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"]
+                                return " Dati di " + nomi[popupProfilo.meseFiltroSelezionato]
+                            }
+                            font.pixelSize: 11
+                            font.bold: true
+                            color: "#1565C0"
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+
+                        // BADGE DEL MESE SELEZIONATO
+                        Label {
+                            visible: popupProfilo.meseFiltroSelezionato !== -1
+                            text: "Badge del mese:"
+                            font.pixelSize: 12
+                            font.bold: true
+                            color: "#555"
+                        }
+                        ListView {
+                            visible: popupProfilo.meseFiltroSelezionato !== -1
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: {
+                                var n = popupProfilo.storicoBadge.filter(function(b) {
+                                    return b.mese === popupProfilo.meseFiltroSelezionato
+                                }).length
+                                return n === 0 ? 30 : Math.min(n * 38 + 4, 120)
+                            }
+                            clip: true
+                            model: popupProfilo.storicoBadge.filter(function(b) {
+                                return b.mese === popupProfilo.meseFiltroSelezionato
+                            })
+                            delegate: Rectangle {
+                                width: parent.width
+                                height: 34
+                                radius: 6
+                                color: index % 2 === 0 ? "#f5f8ff" : "white"
+                                border.color: "#e0e0e0"
+                                border.width: 1
+                                Row {
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 10
+                                    Rectangle {
+                                        width: badgeTxt.width + 16
+                                        height: 22
+                                        radius: 5
+                                        color: modelData.colore
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        Text {
+                                            id: badgeTxt
+                                            anchors.centerIn: parent
+                                            text: modelData.nome_badge
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                            color: modelData.livello === 3 ? "#003344" : "white"
+                                        }
+                                    }
+                                    Text {
+                                        text: modelData.livello === 1 ? "▲ ARGENTO"
+                                            : modelData.livello === 2 ? "★ ORO"
+                                            : "◆ DIAMANTE"
+                                        font.pixelSize: 11
+                                        color: "#888"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        popupDettaglioBadge.nomeBadge = modelData.nome_badge
+                                        popupDettaglioBadge.livelloBadge = modelData.livello
+                                        popupDettaglioBadge.coloreBadge = modelData.colore
+                                        popupDettaglioBadge.open()
+                                    }
+                                }
+                            }
+                            Label {
+                                anchors.centerIn: parent
+                                visible: popupProfilo.storicoBadge.filter(function(b) {
+                                    return b.mese === popupProfilo.meseFiltroSelezionato
+                                }).length === 0
+                                text: "Nessun badge questo mese"
+                                color: "gray"
+                                font.pixelSize: 11
+                            }
+                        }
+
+                        // RIPOSI PER TIPO (filtrati)
+                        ListView {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            model: {
+                                var mappa = {}
+                                var filtroMese = popupProfilo.meseFiltroSelezionato
+                                for (var j = 0; j < popupProfilo.riposiAnnuali.length; j++) {
+                                    var r = popupProfilo.riposiAnnuali[j]
+                                    var nota = (r.a || "").toUpperCase()
+                                    if (nota.includes("MAT") || nota.includes("CIT") ||
+                                        nota.includes("POM") || nota.includes("SER")) continue
+                                    if (filtroMese !== -1) {
+                                        var parti = (r.data || "").split("-")
+                                        if (parti.length < 2 || parseInt(parti[1]) !== filtroMese) continue
+                                    }
+                                    var tipo = r.tipo || "SCONOSCIUTO"
+                                    mappa[tipo] = (mappa[tipo] || 0) + 1
+                                }
+                                return Object.keys(mappa).map(function(k) {
+                                    return { tipo: k, count: mappa[k] }
+                                })
+                            }
+                            delegate: Rectangle {
+                                width: parent.width
+                                height: 34
+                                radius: 6
+                                color: index % 2 === 0 ? "#f5f8ff" : "white"
+                                border.color: "#e0e0e0"
+                                border.width: 1
+                                Row {
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 10
+                                    Text {
+                                        text: modelData.tipo
+                                        font.pixelSize: 12
+                                        color: "#444"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        text: modelData.count + " giorni"
+                                        font.bold: true
+                                        font.pixelSize: 12
+                                        color: "#388E3C"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+                            }
+                        }
+
+                        Button {
+                            text: "CHIUDI"
+                            Layout.fillWidth: true
+                            onClicked: popupProfilo.close()
+                        }
                     }
                 }
             }
@@ -2169,258 +2176,263 @@ Window {
                     border.color: "#1565C0"
                     border.width: 2
                 }
-
-                ColumnLayout {
+                ScrollView {
                     anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 14
+                    clip: true
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
-                    // INTESTAZIONE
-                    Item {
-                        Layout.fillWidth: true
-                        height: nameLabel.implicitHeight
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 14
+
+                        // INTESTAZIONE
+                        Item {
+                            Layout.fillWidth: true
+                            height: nameLabel.implicitHeight
+                            Label {
+                                id: nameLabel
+                                text: "  " + popupProfiloAltro.nomeUtente
+                                font.bold: true
+                                font.pixelSize: 18
+                                color: "#1565C0"
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                opacity: 0
+                                y: -10
+                                SequentialAnimation {
+                                    running: popupProfiloAltro.visible
+                                    ParallelAnimation {
+                                        NumberAnimation { target: nameLabel; property: "opacity"; to: 1.0; duration: 400; easing.type: Easing.OutCubic }
+                                        NumberAnimation { target: nameLabel; property: "y"; to: 0; duration: 400; easing.type: Easing.OutCubic }
+                                    }
+                                }
+                            }
+                        }
+                        Rectangle { height: 1; Layout.fillWidth: true; color: "#1565C0"; opacity: 0.3 }
+
+                        // LOADING
                         Label {
-                            id: nameLabel
-                            text: "  " + popupProfiloAltro.nomeUtente
-                            font.bold: true
-                            font.pixelSize: 18
-                            color: "#1565C0"
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            opacity: 0
-                            y: -10
-                            SequentialAnimation {
-                                running: popupProfiloAltro.visible
-                                ParallelAnimation {
-                                    NumberAnimation { target: nameLabel; property: "opacity"; to: 1.0; duration: 400; easing.type: Easing.OutCubic }
-                                    NumberAnimation { target: nameLabel; property: "y"; to: 0; duration: 400; easing.type: Easing.OutCubic }
-                                }
-                            }
-                        }
-                    }
-                    Rectangle { height: 1; Layout.fillWidth: true; color: "#1565C0"; opacity: 0.3 }
-
-                    // LOADING
-                    Label {
-                        visible: popupProfiloAltro.isLoading
-                        text: "⏳ Caricamento..."
-                        color: "#888"
-                        font.pixelSize: 13
-                        Layout.alignment: Qt.AlignHCenter
-                        SequentialAnimation on opacity {
-                            loops: Animation.Infinite
-                            running: popupProfiloAltro.isLoading
-                            NumberAnimation { to: 0.3; duration: 500 }
-                            NumberAnimation { to: 1.0; duration: 500 }
-                        }
-                    }
-
-                    // BADGE MESE CORRENTE
-                    Rectangle {
-                        id: rectBadgeMese
-                        Layout.fillWidth: true
-                        height: 70
-                        radius: 10
-                        visible: !popupProfiloAltro.isLoading && popupProfiloAltro.badgeMeseCorrente.livello > 0
-                        color: popupProfiloAltro.badgeMeseCorrente.colore !== ""
-                            ? popupProfiloAltro.badgeMeseCorrente.colore : "#eeeeee"
-                        border.color: popupProfiloAltro.badgeMeseCorrente.livello === 3 ? "#00bcd4"
-                                    : Qt.darker(popupProfiloAltro.badgeMeseCorrente.colore || "#aaa", 1.3)
-                        border.width: 2
-
-                        SequentialAnimation on border.color {
-                            loops: Animation.Infinite
-                            running: popupProfiloAltro.visible && popupProfiloAltro.badgeMeseCorrente.livello === 3
-                            ColorAnimation { to: "#00bcd4"; duration: 900 }
-                            ColorAnimation { to: "#e0f7fa"; duration: 900 }
-                        }
-                        opacity: 1
-                        SequentialAnimation on border.width {
-                            loops: Animation.Infinite
-                            running: popupProfiloAltro.visible && popupProfiloAltro.badgeMeseCorrente.livello > 0
-                            NumberAnimation { to: 3; duration: 800; easing.type: Easing.InOutSine }
-                            NumberAnimation { to: 1; duration: 800; easing.type: Easing.InOutSine }
-                        }
-
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 12
-
-                            AnimatedImage {
-                                width: 54; height: 54
-                                fillMode: Image.PreserveAspectFit
-                                playing: popupProfiloAltro.visible
-                                source: popupProfiloAltro.visible && (popupProfiloAltro.badgeMeseCorrente.nome_badge || popupProfiloAltro.badgeMeseCorrente.nome || "") !== ""
-                                        ? popupDettaglioBadge.gifPerBadge(popupProfiloAltro.badgeMeseCorrente.nome_badge || popupProfiloAltro.badgeMeseCorrente.nome || "") : ""
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-
-                            Column {
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
-                                Text {
-                                    text: popupProfiloAltro.badgeMeseCorrente.nome_badge
-                                        || popupProfiloAltro.badgeMeseCorrente.nome || ""
-                                    font.pixelSize: 20; font.bold: true
-                                    color: popupProfiloAltro.badgeMeseCorrente.livello === 3 ? "#003344" : "white"
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                }
-                                Text {
-                                    text: "BADGE DEL MESE  •  " + (
-                                        popupProfiloAltro.badgeMeseCorrente.livello === 1 ? "▲ ARGENTO"
-                                        : popupProfiloAltro.badgeMeseCorrente.livello === 2 ? "★ ORO"
-                                        : "◆ DIAMANTE")
-                                    font.pixelSize: 11
-                                    color: popupProfiloAltro.badgeMeseCorrente.livello === 3 ? "#005577" : "white"
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    opacity: 0.9
-                                }
+                            visible: popupProfiloAltro.isLoading
+                            text: "⏳ Caricamento..."
+                            color: "#888"
+                            font.pixelSize: 13
+                            Layout.alignment: Qt.AlignHCenter
+                            SequentialAnimation on opacity {
+                                loops: Animation.Infinite
+                                running: popupProfiloAltro.isLoading
+                                NumberAnimation { to: 0.3; duration: 500 }
+                                NumberAnimation { to: 1.0; duration: 500 }
                             }
                         }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: {
-                                var b = popupProfiloAltro.badgeMeseCorrente
-                                popupDettaglioBadge.nomeBadge    = b.nome_badge || b.nome || ""
-                                popupDettaglioBadge.livelloBadge = b.livello
-                                popupDettaglioBadge.coloreBadge  = b.colore
-                                popupDettaglioBadge.open()
+                        // BADGE MESE CORRENTE
+                        Rectangle {
+                            id: rectBadgeMese
+                            Layout.fillWidth: true
+                            height: 70
+                            radius: 10
+                            visible: !popupProfiloAltro.isLoading && popupProfiloAltro.badgeMeseCorrente.livello > 0
+                            color: popupProfiloAltro.badgeMeseCorrente.colore !== ""
+                                ? popupProfiloAltro.badgeMeseCorrente.colore : "#eeeeee"
+                            border.color: popupProfiloAltro.badgeMeseCorrente.livello === 3 ? "#00bcd4"
+                                        : Qt.darker(popupProfiloAltro.badgeMeseCorrente.colore || "#aaa", 1.3)
+                            border.width: 2
+
+                            SequentialAnimation on border.color {
+                                loops: Animation.Infinite
+                                running: popupProfiloAltro.visible && popupProfiloAltro.badgeMeseCorrente.livello === 3
+                                ColorAnimation { to: "#00bcd4"; duration: 900 }
+                                ColorAnimation { to: "#e0f7fa"; duration: 900 }
                             }
-                        }
-                    }
-
-                    // Nessun badge mese
-                    Label {
-                        visible: !popupProfiloAltro.isLoading && popupProfiloAltro.badgeMeseCorrente.livello === 0
-                        text: "Nessun badge questo mese"
-                        color: "gray"; font.pixelSize: 12; font.italic: true
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-
-                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
-
-                    // BADGE GUADAGNATI QUEST'ANNO
-                    Label {
-                        text: "BADGE GUADAGNATI QUEST'ANNO"
-                        font.bold: true; font.pixelSize: 13; color: "#333"
-                    }
-
-                    ListView {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: popupProfiloAltro.badgeAggregati.length > 0 ? Math.min(popupProfiloAltro.badgeAggregati.length * 38 + 4, 150) : 0
-                        clip: true
-                        model: popupProfiloAltro.badgeAggregati
-                        delegate: Rectangle {
-                            width: parent.width
-                            height: 34
-                            radius: 6
-                            color: index % 2 === 0 ? "#f5f8ff" : "white"
-                            border.color: "#e0e0e0"; border.width: 1
                             opacity: 1
+                            SequentialAnimation on border.width {
+                                loops: Animation.Infinite
+                                running: popupProfiloAltro.visible && popupProfiloAltro.badgeMeseCorrente.livello > 0
+                                NumberAnimation { to: 3; duration: 800; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 1; duration: 800; easing.type: Easing.InOutSine }
+                            }
+
                             Row {
-                                anchors.fill: parent; anchors.margins: 8; spacing: 10
-                                Text {
-                                    text: modelData.nome
-                                    font.bold: true; font.pixelSize: 13; color: "#222"
+                                anchors.centerIn: parent
+                                spacing: 12
+
+                                AnimatedImage {
+                                    width: 54; height: 54
+                                    fillMode: Image.PreserveAspectFit
+                                    playing: popupProfiloAltro.visible
+                                    source: popupProfiloAltro.visible && (popupProfiloAltro.badgeMeseCorrente.nome_badge || popupProfiloAltro.badgeMeseCorrente.nome || "") !== ""
+                                            ? popupDettaglioBadge.gifPerBadge(popupProfiloAltro.badgeMeseCorrente.nome_badge || popupProfiloAltro.badgeMeseCorrente.nome || "") : ""
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
-                                Text {
-                                    text: "x" + modelData.count + " volte"
-                                    font.pixelSize: 12; color: "#1565C0"; font.bold: true
+
+                                Column {
                                     anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 2
+                                    Text {
+                                        text: popupProfiloAltro.badgeMeseCorrente.nome_badge
+                                            || popupProfiloAltro.badgeMeseCorrente.nome || ""
+                                        font.pixelSize: 20; font.bold: true
+                                        color: popupProfiloAltro.badgeMeseCorrente.livello === 3 ? "#003344" : "white"
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                    }
+                                    Text {
+                                        text: "BADGE DEL MESE  •  " + (
+                                            popupProfiloAltro.badgeMeseCorrente.livello === 1 ? "▲ ARGENTO"
+                                            : popupProfiloAltro.badgeMeseCorrente.livello === 2 ? "★ ORO"
+                                            : "◆ DIAMANTE")
+                                        font.pixelSize: 11
+                                        color: popupProfiloAltro.badgeMeseCorrente.livello === 3 ? "#005577" : "white"
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        opacity: 0.9
+                                    }
                                 }
                             }
+
                             MouseArea {
                                 anchors.fill: parent
                                 onClicked: {
-                                    popupDettaglioBadge.nomeBadge    = modelData.nome
-                                    popupDettaglioBadge.livelloBadge = modelData.livello
-                                    popupDettaglioBadge.coloreBadge  = modelData.colore
+                                    var b = popupProfiloAltro.badgeMeseCorrente
+                                    popupDettaglioBadge.nomeBadge    = b.nome_badge || b.nome || ""
+                                    popupDettaglioBadge.livelloBadge = b.livello
+                                    popupDettaglioBadge.coloreBadge  = b.colore
                                     popupDettaglioBadge.open()
                                 }
                             }
                         }
-                    }
 
-                    Label {
-                        visible: !popupProfiloAltro.isLoading && popupProfiloAltro.badgeAggregati.length === 0
-                        text: "Nessun badge questo anno"
-                        color: "gray"; font.pixelSize: 12; font.italic: true
-                    }
-
-                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
-
-                    // STRAORDINARI QUEST'ANNO
-                    Label {
-                        text: "STRAORDINARI QUEST'ANNO"
-                        font.bold: true; font.pixelSize: 13; color: "#333"
-                    }
-                    Rectangle {
-                        id: rectOreAltro
-                        Layout.fillWidth: true; height: 40; radius: 8
-                        color: "#E3F2FD"; border.color: "#2196F3"; border.width: 1
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: popupProfiloAltro.oreStr.toFixed(1) + " ore totali"
-                            font.bold: true; font.pixelSize: 15; color: "#1565C0"
+                        // Nessun badge mese
+                        Label {
+                            visible: !popupProfiloAltro.isLoading && popupProfiloAltro.badgeMeseCorrente.livello === 0
+                            text: "Nessun badge questo mese"
+                            color: "gray"; font.pixelSize: 12; font.italic: true
+                            Layout.alignment: Qt.AlignHCenter
                         }
-                    }
 
-                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+                        Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
 
-                    // RIPOSI PER TIPO
-                    Label {
-                        text: "RIPOSI FRUITI QUEST'ANNO PER TIPO"
-                        font.bold: true; font.pixelSize: 13; color: "#333"
-                    }
-
-                    ListView {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: popupProfiloAltro.riposiAnnuali.length > 0 ? Math.min(popupProfiloAltro.riposiAnnuali.length * 38 + 4, 160) : 0
-                        clip: true
-                        model: {
-                            var mappa = {}
-                            for (var j = 0; j < popupProfiloAltro.riposiAnnuali.length; j++) {
-                                var r = popupProfiloAltro.riposiAnnuali[j]
-                                var nota = (r.a || "").toUpperCase()
-                                if (nota.includes("MAT") || nota.includes("CIT") ||
-                                    nota.includes("POM") || nota.includes("SER")) continue
-                                var tipo = r.tipo || "SCONOSCIUTO"
-                                mappa[tipo] = (mappa[tipo] || 0) + 1
-                            }
-                            return Object.keys(mappa).map(function(k) { return { tipo: k, count: mappa[k] } })
+                        // BADGE GUADAGNATI QUEST'ANNO
+                        Label {
+                            text: "BADGE GUADAGNATI QUEST'ANNO"
+                            font.bold: true; font.pixelSize: 13; color: "#333"
                         }
-                        delegate: Rectangle {
-                            width: parent.width; height: 34; radius: 6
-                            color: index % 2 === 0 ? "#f5f8ff" : "white"
-                            border.color: "#e0e0e0"; border.width: 1
-                            opacity: 1
-                            Row {
-                                anchors.fill: parent; anchors.margins: 8; spacing: 10
-                                Text {
-                                    text: modelData.tipo; font.pixelSize: 12; color: "#444"
-                                    anchors.verticalCenter: parent.verticalCenter
+
+                        ListView {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: popupProfiloAltro.badgeAggregati.length > 0 ? Math.min(popupProfiloAltro.badgeAggregati.length * 38 + 4, 150) : 0
+                            clip: true
+                            model: popupProfiloAltro.badgeAggregati
+                            delegate: Rectangle {
+                                width: parent.width
+                                height: 34
+                                radius: 6
+                                color: index % 2 === 0 ? "#f5f8ff" : "white"
+                                border.color: "#e0e0e0"; border.width: 1
+                                opacity: 1
+                                Row {
+                                    anchors.fill: parent; anchors.margins: 8; spacing: 10
+                                    Text {
+                                        text: modelData.nome
+                                        font.bold: true; font.pixelSize: 13; color: "#222"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        text: "x" + modelData.count + " volte"
+                                        font.pixelSize: 12; color: "#1565C0"; font.bold: true
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
                                 }
-                                Text {
-                                    text: modelData.count + " giorni"
-                                    font.bold: true; font.pixelSize: 12; color: "#388E3C"
-                                    anchors.verticalCenter: parent.verticalCenter
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        popupDettaglioBadge.nomeBadge    = modelData.nome
+                                        popupDettaglioBadge.livelloBadge = modelData.livello
+                                        popupDettaglioBadge.coloreBadge  = modelData.colore
+                                        popupDettaglioBadge.open()
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    Label {
-                        visible: !popupProfiloAltro.isLoading && popupProfiloAltro.riposiAnnuali.length === 0
-                        text: "Nessun riposo registrato"
-                        color: "gray"; font.pixelSize: 12; font.italic: true
-                    }
+                        Label {
+                            visible: !popupProfiloAltro.isLoading && popupProfiloAltro.badgeAggregati.length === 0
+                            text: "Nessun badge questo anno"
+                            color: "gray"; font.pixelSize: 12; font.italic: true
+                        }
 
-                    Button {
-                        text: "CHIUDI"
-                        Layout.fillWidth: true
-                        onClicked: popupProfiloAltro.close()
+                        Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                        // STRAORDINARI QUEST'ANNO
+                        Label {
+                            text: "STRAORDINARI QUEST'ANNO"
+                            font.bold: true; font.pixelSize: 13; color: "#333"
+                        }
+                        Rectangle {
+                            id: rectOreAltro
+                            Layout.fillWidth: true; height: 40; radius: 8
+                            color: "#E3F2FD"; border.color: "#2196F3"; border.width: 1
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: popupProfiloAltro.oreStr.toFixed(1) + " ore totali"
+                                font.bold: true; font.pixelSize: 15; color: "#1565C0"
+                            }
+                        }
+
+                        Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                        // RIPOSI PER TIPO
+                        Label {
+                            text: "RIPOSI FRUITI QUEST'ANNO PER TIPO"
+                            font.bold: true; font.pixelSize: 13; color: "#333"
+                        }
+
+                        ListView {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: popupProfiloAltro.riposiAnnuali.length > 0 ? Math.min(popupProfiloAltro.riposiAnnuali.length * 38 + 4, 160) : 0
+                            clip: true
+                            model: {
+                                var mappa = {}
+                                for (var j = 0; j < popupProfiloAltro.riposiAnnuali.length; j++) {
+                                    var r = popupProfiloAltro.riposiAnnuali[j]
+                                    var nota = (r.a || "").toUpperCase()
+                                    if (nota.includes("MAT") || nota.includes("CIT") ||
+                                        nota.includes("POM") || nota.includes("SER")) continue
+                                    var tipo = r.tipo || "SCONOSCIUTO"
+                                    mappa[tipo] = (mappa[tipo] || 0) + 1
+                                }
+                                return Object.keys(mappa).map(function(k) { return { tipo: k, count: mappa[k] } })
+                            }
+                            delegate: Rectangle {
+                                width: parent.width; height: 34; radius: 6
+                                color: index % 2 === 0 ? "#f5f8ff" : "white"
+                                border.color: "#e0e0e0"; border.width: 1
+                                opacity: 1
+                                Row {
+                                    anchors.fill: parent; anchors.margins: 8; spacing: 10
+                                    Text {
+                                        text: modelData.tipo; font.pixelSize: 12; color: "#444"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        text: modelData.count + " giorni"
+                                        font.bold: true; font.pixelSize: 12; color: "#388E3C"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+                            }
+                        }
+
+                        Label {
+                            visible: !popupProfiloAltro.isLoading && popupProfiloAltro.riposiAnnuali.length === 0
+                            text: "Nessun riposo registrato"
+                            color: "gray"; font.pixelSize: 12; font.italic: true
+                        }
+
+                        Button {
+                            text: "CHIUDI"
+                            Layout.fillWidth: true
+                            onClicked: popupProfiloAltro.close()
+                        }
                     }
                 }
             }
@@ -3463,6 +3475,7 @@ Window {
         id: popupDettaglioBadge
         anchors.centerIn: parent
         width: parent.width * 0.82
+        height: Math.min(parent.height * 0.85, 520)
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
