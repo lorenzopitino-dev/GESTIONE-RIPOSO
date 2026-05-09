@@ -3433,7 +3433,7 @@ Window {
     Popup {
         id: popupConfigBlocco
         anchors.centerIn: Overlay.overlay
-        width: parent.width * 0.9
+        width: window.width * 0.9
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -3474,8 +3474,8 @@ Window {
     Popup {
         id: popupDettaglioBadge
         anchors.centerIn: Overlay.overlay
-        width: parent.width * 0.82
-        height: Math.min(parent.height * 0.85, 520)
+        width: window.width * 0.82
+        height: Math.min(window.height * 0.85, 520)
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
