@@ -935,6 +935,286 @@ public:
             reply->deleteLater();
         });
     }
+    Q_INVOKABLE void caricaDettaglioStraordinariMese(QString idUtente, int anno, int mese) {
+        QDate primoGiorno(anno, mese, 1);
+        QDate primoMeseSucc = primoGiorno.addMonths(1);
+        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/straordinari"
+                "?id_utente=eq." + idUtente +
+                "&data=gte." + primoGiorno.toString("yyyy-MM-dd") +
+                "&data=lt."  + primoMeseSucc.toString("yyyy-MM-dd") +
+                "&select=data,ore");
+        QNetworkRequest request(url);
+        impostaHeader(request);
+        QNetworkReply* reply = manager->get(request);
+        connect(reply, &QNetworkReply::finished, [this, reply]() {
+            if (reply->error() == QNetworkReply::NoError) {
+                QJsonArray array = QJsonDocument::fromJson(reply->readAll()).array();
+                QVariantList lista;
+                for (const QJsonValue &v : array) {
+                    QJsonObject obj = v.toObject();
+                    QVariantMap item;
+                    item["dataISO"] = obj["data"].toString();
+                    item["ore"]     = obj["ore"].toDouble();
+                    lista.append(item);
+                }
+                emit dettaglioStraordinariRicevuti(lista);
+            }
+            reply->deleteLater();
+        });
+    }
+    // Badge Riposi e Licenze — scarica tutti i record dell'utente
+    Q_INVOKABLE void caricaBadgeRiposi(QString idUtente) {
+        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/riposi"
+                 "?id_utente=eq." + idUtente +
+                 "&select=giorno_di_riposo,tipo_riposo,fruizione,stato,data_fruizione,a"
+                 "&order=giorno_di_riposo.asc");
+        QNetworkRequest request(url);
+        impostaHeader(request);
+        QNetworkReply* reply = manager->get(request);
+        connect(reply, &QNetworkReply::finished, [this, reply]() {
+            if (reply->error() == QNetworkReply::NoError) {
+                QJsonArray array = QJsonDocument::fromJson(reply->readAll()).array();
+                QVariantList lista;
+                for (const QJsonValue &v : array) {
+                    QJsonObject obj = v.toObject();
+                    QVariantMap item;
+                    item["data"]    = obj["giorno_di_riposo"].toString(); // "yyyy-MM-dd"
+                    item["tipo"]    = obj["tipo_riposo"].toString();
+                    item["fruiz"]   = obj["fruizione"].toString();
+                    item["stato"]   = obj["stato"].toString();
+                    item["data_fruizione"] = obj["data_fruizione"].toString();
+                    item["a"] = obj["a"].toString();
+                    lista.append(item);
+                }
+                emit badgeRiposiRicevuti(lista);
+            }
+            reply->deleteLater();
+        });
+    }
+    Q_INVOKABLE void contaColleghiPerData(QString idUtente, QString dataISO) {
+        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/rpc/conta_colleghi_per_data");
+        QNetworkRequest request(url);
+        impostaHeader(request);
+
+        QJsonObject body;
+        body["p_id_utente"] = idUtente.toInt();
+        body["p_data"] = dataISO; // "yyyy-MM-dd"
+
+        QNetworkReply* reply = manager->post(request, QJsonDocument(body).toJson());
+        connect(reply, &QNetworkReply::finished, [this, reply, dataISO]() {
+            if (reply->error() == QNetworkReply::NoError) {
+                QByteArray raw = reply->readAll();
+                int count = QString(raw).trimmed().remove("\"").toInt();
+                emit colleghiPerDataRicevuti(dataISO, count);
+            }
+            reply->deleteLater();
+        });
+    }
+    // Salva badge del mese (chiamata a fine calcolaBadge)
+    Q_INVOKABLE void salvaBadgeMese(QString idUtente, int anno, int mese, QVariantList badges) {
+        for (const QVariant &bv : badges) {
+            QVariantMap b = bv.toMap();
+            QJsonObject dati;
+            dati["id_utente"]   = idUtente;
+            dati["anno"]        = anno;
+            dati["mese"]        = mese;
+            dati["nome_badge"]  = b["nome"].toString();
+            dati["livello"]     = b["livello"].toInt();
+            dati["colore"]      = b["colore"].toString();
+
+            QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/badge_storico"
+                    "?on_conflict=id_utente,anno,mese,nome_badge");
+            QNetworkRequest request(url);
+            impostaHeader(request);
+            request.setRawHeader("Prefer", "resolution=merge-duplicates,return=minimal");
+
+            QNetworkReply* reply = manager->post(request, QJsonDocument(dati).toJson());
+            connect(reply, &QNetworkReply::finished, [reply]() {
+                if (reply->error() != QNetworkReply::NoError)
+                    qDebug() << "ERRORE salvaBadgeMese:" << reply->errorString() << reply->readAll();
+                else
+                    qDebug() << "salvaBadgeMese OK:" << reply->readAll();
+                reply->deleteLater();
+            });
+        }
+    }
+
+    // Carica storico badge dell'anno corrente
+    Q_INVOKABLE void caricaStoricoBadge(QString idUtente, int anno) {
+        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/badge_storico"
+                "?id_utente=eq." + idUtente +
+                "&anno=eq." + QString::number(anno) +
+                "&select=mese,nome_badge,livello,colore&order=mese.asc");
+        QNetworkRequest request(url);
+        impostaHeader(request);
+        QNetworkReply* reply = manager->get(request);
+        connect(reply, &QNetworkReply::finished, [this, reply]() {
+            if (reply->error() == QNetworkReply::NoError) {
+                QByteArray raw = reply->readAll();
+                qDebug() << "caricaStoricoBadge risposta:" << raw;
+                QJsonArray array = QJsonDocument::fromJson(raw).array();
+                QVariantList lista;
+                for (const QJsonValue &v : array) {
+                    QJsonObject obj = v.toObject();
+                    QVariantMap item;
+                    item["mese"]       = obj["mese"].toInt();
+                    item["nome_badge"] = obj["nome_badge"].toString();
+                    item["livello"]    = obj["livello"].toInt();
+                    item["colore"]     = obj["colore"].toString();
+                    lista.append(item);
+                }
+                emit storicoBadgeRicevuto(lista);
+            } else {
+                qDebug() << "caricaStoricoBadge ERRORE:" << reply->errorString() << reply->readAll();
+            }
+            reply->deleteLater();
+        });
+    }
+
+    // Carica riposi fruiti dell'anno per tipo
+    Q_INVOKABLE void caricaRiposiAnnualiPerTipo(QString idUtente, int anno, QString oggiISO) {
+        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/riposi"
+            "?id_utente=eq." + idUtente +
+            "&data_fruizione=gte." + QString::number(anno) + "-01-01" +
+            "&data_fruizione=lte." + oggiISO +
+            "&data_fruizione=not.is.null"
+            "&select=tipo_riposo,data_fruizione,a");
+        QNetworkRequest request(url);
+        impostaHeader(request);
+        QNetworkReply* reply = manager->get(request);
+        connect(reply, &QNetworkReply::finished, [this, reply]() {
+            if (reply->error() == QNetworkReply::NoError) {
+                QJsonArray array = QJsonDocument::fromJson(reply->readAll()).array();
+                QVariantList lista;
+                for (const QJsonValue &v : array) {
+                    QJsonObject obj = v.toObject();
+                    QVariantMap item;
+                    item["tipo"]  = obj["tipo_riposo"].toString();
+                    item["data"]  = obj["data_fruizione"].toString();
+                    item["a"] = obj["a"].toString();
+                    lista.append(item);
+                }
+                emit riposiAnnualiRicevuti(lista);
+            }
+            reply->deleteLater();
+        });
+    }
+    Q_INVOKABLE void caricaOreStrAnnuali(QString idUtente, int anno, QString oggiISO) {
+        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/straordinari"
+                "?id_utente=eq." + idUtente +
+                "&data=gte." + QString::number(anno) + "-01-01" +
+                "&data=lte." + oggiISO +
+                "&select=ore");
+        QNetworkRequest request(url);
+        impostaHeader(request);
+        QNetworkReply* reply = manager->get(request);
+        connect(reply, &QNetworkReply::finished, [this, reply]() {
+            if (reply->error() == QNetworkReply::NoError) {
+                QJsonArray array = QJsonDocument::fromJson(reply->readAll()).array();
+                double totale = 0;
+                for (const QJsonValue &v : array)
+                    totale += v.toObject()["ore"].toDouble();
+                emit oreStrAnnualiRicevute(totale);
+            }
+            reply->deleteLater();
+        });
+    }
+    // Nel blocco pubblico, accanto a caricaOreStrAnnuali
+    Q_INVOKABLE void caricaOreStrMese(QString idUtente, int anno, int mese) {
+        QDate primoGiorno(anno, mese, 1);
+        QDate primoMeseSucc = primoGiorno.addMonths(1);
+        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/straordinari"
+                "?id_utente=eq." + idUtente +
+                "&data=gte." + primoGiorno.toString("yyyy-MM-dd") +
+                "&data=lt."  + primoMeseSucc.toString("yyyy-MM-dd") +
+                "&select=ore");
+        QNetworkRequest request(url);
+        impostaHeader(request);
+        QNetworkReply* reply = manager->get(request);
+        connect(reply, &QNetworkReply::finished, [this, reply]() {
+            if (reply->error() == QNetworkReply::NoError) {
+                QJsonArray array = QJsonDocument::fromJson(reply->readAll()).array();
+                double totale = 0;
+                for (const QJsonValue &v : array)
+                    totale += v.toObject()["ore"].toDouble();
+                emit oreStrMeseRicevute(totale);
+            }
+            reply->deleteLater();
+        });
+    }
+    Q_INVOKABLE void caricaProfiloAltroUtente(QString idUtente, int anno, QString oggiISO) {
+        QUrl urlB("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/badge_storico"
+                "?id_utente=eq." + idUtente +
+                "&anno=eq." + QString::number(anno) +
+                "&select=mese,nome_badge,livello,colore&order=mese.asc");
+        QNetworkRequest reqB(urlB);
+        impostaHeader(reqB);
+        QNetworkReply* replyB = manager->get(reqB);
+        connect(replyB, &QNetworkReply::finished, [this, replyB]() {
+            if (replyB->error() == QNetworkReply::NoError) {
+                QJsonArray array = QJsonDocument::fromJson(replyB->readAll()).array();
+                QVariantList lista;
+                for (const QJsonValue &v : array) {
+                    QJsonObject obj = v.toObject();
+                    QVariantMap item;
+                    item["mese"]       = obj["mese"].toInt();
+                    item["nome_badge"] = obj["nome_badge"].toString();
+                    item["livello"]    = obj["livello"].toInt();
+                    item["colore"]     = obj["colore"].toString();
+                    lista.append(item);
+                }
+                emit profiloAltroStoricoBadge(lista);
+            }
+            replyB->deleteLater();
+        });
+
+        // 2) Riposi annuali per tipo
+        QUrl urlR("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/riposi"
+                "?id_utente=eq." + idUtente +
+                "&data_fruizione=gte." + QString::number(anno) + "-01-01" +
+                "&data_fruizione=lte." + oggiISO +
+                "&data_fruizione=not.is.null"
+                "&select=tipo_riposo,data_fruizione,a");
+        QNetworkRequest reqR(urlR);
+        impostaHeader(reqR);
+        QNetworkReply* replyR = manager->get(reqR);
+        connect(replyR, &QNetworkReply::finished, [this, replyR]() {
+            if (replyR->error() == QNetworkReply::NoError) {
+                QJsonArray array = QJsonDocument::fromJson(replyR->readAll()).array();
+                QVariantList lista;
+                for (const QJsonValue &v : array) {
+                    QJsonObject obj = v.toObject();
+                    QVariantMap item;
+                    item["tipo"] = obj["tipo_riposo"].toString();
+                    item["data"] = obj["data_fruizione"].toString();
+                    item["a"]    = obj["a"].toString();
+                    lista.append(item);
+                }
+                emit profiloAltroRiposiAnnuali(lista);
+            }
+            replyR->deleteLater();
+        });
+
+        // 3) Ore straordinari annuali
+        QUrl urlS("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/straordinari"
+                "?id_utente=eq." + idUtente +
+                "&data=gte." + QString::number(anno) + "-01-01" +
+                "&data=lte." + oggiISO +
+                "&select=ore");
+        QNetworkRequest reqS(urlS);
+        impostaHeader(reqS);
+        QNetworkReply* replyS = manager->get(reqS);
+        connect(replyS, &QNetworkReply::finished, [this, replyS]() {
+            if (replyS->error() == QNetworkReply::NoError) {
+                QJsonArray array = QJsonDocument::fromJson(replyS->readAll()).array();
+                double totale = 0;
+                for (const QJsonValue &v : array)
+                    totale += v.toObject()["ore"].toDouble();
+                emit profiloAltroOreStr(totale);
+            }
+            replyS->deleteLater();
+        });
+    }
 
 
 signals:
@@ -952,6 +1232,16 @@ signals:
     void erroreOperazione(QString messaggio);
     void notificheRicevute(QVariantList lista);
     void oreBadgeMenuRicevute(double totaleOre);
+    void badgeRiposiRicevuti(QVariantList lista);
+    void colleghiPerDataRicevuti(QString dataISO, int count);
+    void dettaglioStraordinariRicevuti(QVariantList lista);
+    void storicoBadgeRicevuto(QVariantList lista);
+    void riposiAnnualiRicevuti(QVariantList lista);
+    void oreStrAnnualiRicevute(double totale);
+    void oreStrMeseRicevute(double totale);
+    void profiloAltroStoricoBadge(QVariantList lista);
+    void profiloAltroRiposiAnnuali(QVariantList lista);
+    void profiloAltroOreStr(double totale);
 
 private:
     bool m_bloccoAttivo = false;
@@ -1054,7 +1344,8 @@ private:
                                                       : "Riposo validato e fruito!";
                 emit operazioneCompletata(msg);
             } else {
-                emit erroreOperazione("Non puoi fruire di un giorno in data antecedente a oggi!" + reply->errorString());
+                qDebug() << "[PATCH] Errore rete:" << reply->errorString();
+                emit erroreOperazione("Non puoi fruire di un giorno in data precedente a oggi.");
             }
             reply->deleteLater();
         });

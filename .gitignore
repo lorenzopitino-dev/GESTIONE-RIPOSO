@@ -50,3 +50,7 @@ appGestione_Riposo_autogen/
 .DS_Store
 Thumbs.db
 desktop.ini
+# Eccezioni — file compilati da pubblicare
+!appGestione_Riposo.html
+!appGestione_Riposo.js
+!appGestione_Riposo.wasm

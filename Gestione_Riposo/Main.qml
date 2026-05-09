@@ -119,36 +119,515 @@ Window {
             property bool mostraNotifica: window.haNotificheGlobal
             property int conteggioNotifiche: window.notificheCount
             property var listaNotifiche: null
+            property double oreStrMese: 0.0
+            property var listaRiposiRaw: []
+            property var badgeCorrente: ({ nome: "", livello: 0, colore: "#888888", emoji: "" })
+            property var tuttiBadge: ([])
+            property var mappaColleghi: ({})  // { "yyyy-MM-dd": numColleghi }
+            property bool colleghiCaricati: false
+            property int _attesaColleghi: 0
+            property var listaDettaglioStr: []
             readonly property var adminIDs: ["1", "2", "3", "19"]
+            function toDate(s) {
+                if (!s || s === "") return new Date(0)
+                var p = s.split("-")
+                return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]))
+            }
+            function toISO(d) {
+                let y = d.getFullYear()
+                let m = ("0" + (d.getMonth() + 1)).slice(-2)
+                let day = ("0" + d.getDate()).slice(-2)
+                return y + "-" + m + "-" + day
+            }
+
+            function isMeseCorrente(d) {
+                let oggi = new Date()
+                let meseCorrente = oggi.getMonth() + 1
+                let annoCorrente = oggi.getFullYear()
+
+                return d.getFullYear() === annoCorrente &&
+                    (d.getMonth() + 1) === meseCorrente
+            }
+            function tuttiSabatiRiposo(lista) {
+                var dateSet = {}
+                lista.forEach(r => {
+                    if (r.data_fruizione && r.data_fruizione !== "")
+                        dateSet[r.data_fruizione] = true
+                })
+
+                var oggi = new Date()
+                var meseCorrente = oggi.getMonth() + 1
+                var annoCorrente = oggi.getFullYear()
+
+                var d = new Date(annoCorrente, meseCorrente - 1, 1)
+                while (d.getMonth() === meseCorrente - 1) {
+                    if (d.getDay() === 6) {
+                        var iso = toISO(d)
+                        if (!dateSet[iso]) return false
+                    }
+                    d.setDate(d.getDate() + 1)
+                }
+                return true
+            }
+
+            function tutteDomeniche(lista) {
+                var dateSet = {}
+                lista.forEach(r => {
+                    if (r.data_fruizione && r.data_fruizione !== "")
+                        dateSet[r.data_fruizione] = true
+                })
+
+                var oggi = new Date()
+                var meseCorrente = oggi.getMonth() + 1
+                var annoCorrente = oggi.getFullYear()
+
+                var d = new Date(annoCorrente, meseCorrente - 1, 1)
+                while (d.getMonth() === meseCorrente - 1) {
+                    if (d.getDay() === 0) {
+                        var iso = toISO(d)
+                        if (!dateSet[iso]) return false
+                    }
+                    d.setDate(d.getDate() + 1)
+                }
+                return true
+            }
+
+            function calcolaBadge(riposi, mappaColleghi, oreStr, dettaglioStr) {
+                if (!riposi || riposi.length === 0)
+                    return { best: { nome: "", livello: 0, colore: "#888888" }, tutti: [] }
+                function isLicenzaParziale(r) {
+                    if (!r.a) return false
+                    let note = r.a.toUpperCase()
+                    return (note.includes("MAT") || note.includes("CIT") ||
+                            note.includes("POM") || note.includes("SER"))
+                }
+
+                function checkMordiFuggi(lista) {
+                    var dateSet = {}
+                    lista.forEach(r => { if (r.data_fruizione && r.data_fruizione !== "") dateSet[r.data_fruizione] = true })
+                    var date = Object.keys(dateSet).sort()
+                    for (var i = 0; i < date.length - 1; i++) {
+                        var d1 = toDate(date[i])
+                        var d2 = new Date(d1); d2.setDate(d1.getDate() + 1)
+                        var d3 = new Date(d1); d3.setDate(d1.getDate() + 2)
+                        if (!dateSet[toISO(d2)] && dateSet[toISO(d3)]) return true
+                    }
+                    return false
+                }
+
+                function contaWeekendCompleti(lista) {
+                    var oggi = new Date()
+                    var meseCorrente = oggi.getMonth() + 1
+                    var annoCorrente = oggi.getFullYear()
+                    var dateSet = {}
+                    lista.forEach(r => {
+                        if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r))
+                            dateSet[r.data_fruizione] = true
+                    })
+                    var d = new Date(annoCorrente, meseCorrente - 1, 1)
+                    var weekendCompleti = 0
+                    while (d.getMonth() === meseCorrente - 1 && d <= oggi) {
+                        if (d.getDay() === 6) {
+                            var sabISO = toISO(d)
+                            var domISO = toISO(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1))
+                            if (dateSet[sabISO] === true && dateSet[domISO] === true)
+                                weekendCompleti++
+                        }
+                        d.setDate(d.getDate() + 1)
+                    }
+                    return weekendCompleti
+                }
+
+                function contaWeekendGuerriero(lista) {
+                    var oggi = new Date()
+                    var meseCorrente = oggi.getMonth() + 1
+                    var annoCorrente = oggi.getFullYear()
+                    var dateSet = {}
+                    lista.forEach(r => {
+                        if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r))
+                            dateSet[r.data_fruizione] = true
+                    })
+                    var d = new Date(annoCorrente, meseCorrente - 1, 1)
+                    var weekendConsecutivi = 0, maxConsecutivi = 0
+                    while (d.getMonth() === meseCorrente - 1 && d <= oggi) {
+                        if (d.getDay() === 6) {
+                            var sabISO = toISO(d)
+                            var domISO = toISO(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1))
+                            if (!dateSet[sabISO] && !dateSet[domISO]) {
+                                weekendConsecutivi++
+                                if (weekendConsecutivi > maxConsecutivi) maxConsecutivi = weekendConsecutivi
+                            } else {
+                                weekendConsecutivi = 0
+                            }
+                        }
+                        d.setDate(d.getDate() + 1)
+                    }
+                    return maxConsecutivi
+                }
+
+                function contaWeekendSenzaRiposo(lista) {
+                    var oggi = new Date()
+                    var meseCorrente = oggi.getMonth() + 1
+                    var annoCorrente = oggi.getFullYear()
+                    var dateSet = {}
+                    lista.forEach(r => {
+                        if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r))
+                            dateSet[r.data_fruizione] = true
+                    })
+                    var d = new Date(annoCorrente, meseCorrente - 1, 1)
+                    var weekendSenza = 0
+                    while (d.getMonth() === meseCorrente - 1 && d <= oggi) {
+                        if (d.getDay() === 6) {
+                            var sabISO = toISO(d)
+                            var domISO = toISO(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1))
+                            if (!dateSet[sabISO] && !dateSet[domISO])
+                                weekendSenza++
+                        }
+                        d.setDate(d.getDate() + 1)
+                    }
+                    return weekendSenza
+                }
+
+                function checkTetris(lista) {
+                    var oggi = new Date()
+                    var meseCorrente = oggi.getMonth() + 1
+                    var annoCorrente = oggi.getFullYear()
+                    var dateSet = {}
+                    lista.forEach(r => {
+                        if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r))
+                            dateSet[r.data_fruizione] = true
+                    })
+                    var d = new Date(annoCorrente, meseCorrente - 1, 1)
+                    var giorni = []
+                    while (d.getMonth() === meseCorrente - 1 && d <= oggi) {
+                        giorni.push(dateSet[toISO(d)] === true)
+                        d.setDate(d.getDate() + 1)
+                    }
+                    var tetrisConsec = 0, i = 0
+                    while (i < giorni.length) {
+                        if (giorni[i]) { i++; continue }
+                        if (i === 0 || !giorni[i - 1]) {
+                            while (i < giorni.length && !giorni[i]) i++
+                            tetrisConsec = 0; continue
+                        }
+                        var start = i
+                        while (i < giorni.length && !giorni[i]) i++
+                        var lunghezza = i - start
+                        var seguitoDaRiposo = (i < giorni.length && giorni[i])
+                        if (lunghezza <= 2 && seguitoDaRiposo) { tetrisConsec++; if (tetrisConsec >= 2) return true }
+                        else tetrisConsec = 0
+                    }
+                    return false
+                }
+
+                function tuttiSabatiRiposo(lista) {
+                    var oggi = new Date()
+                    var meseCorrente = oggi.getMonth() + 1
+                    var annoCorrente = oggi.getFullYear()
+                    var dateSet = {}
+                    lista.forEach(r => {
+                        if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r))
+                            dateSet[r.data_fruizione] = true
+                    })
+                    var d = new Date(annoCorrente, meseCorrente - 1, 1)
+                    var sabatiRiposo = 0
+                    while (d.getMonth() === meseCorrente - 1 && d <= oggi) {
+                        if (d.getDay() === 6) {
+                            if (!dateSet[toISO(d)]) return false
+                            sabatiRiposo++
+                        }
+                        d.setDate(d.getDate() + 1)
+                    }
+                    return sabatiRiposo >= 4
+                }
+
+                function tutteDomeniche(lista) {
+                    var oggi = new Date()
+                    var meseCorrente = oggi.getMonth() + 1
+                    var annoCorrente = oggi.getFullYear()
+                    var dateSet = {}
+                    lista.forEach(r => {
+                        if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r))
+                            dateSet[r.data_fruizione] = true
+                    })
+                    var d = new Date(annoCorrente, meseCorrente - 1, 1)
+                    var domenicheRiposo = 0
+                    while (d.getMonth() === meseCorrente - 1 && d <= oggi) {
+                        if (d.getDay() === 0) {
+                            if (!dateSet[toISO(d)]) return false
+                            domenicheRiposo++
+                        }
+                        d.setDate(d.getDate() + 1)
+                    }
+                    return domenicheRiposo >= 4
+                }
+
+                function contaWeekendPieni(lista) {
+                    var oggi = new Date()
+                    var meseCorrente = oggi.getMonth() + 1
+                    var annoCorrente = oggi.getFullYear()
+                    var dateSet = {}
+                    lista.forEach(r => {
+                        if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r))
+                            dateSet[r.data_fruizione] = true
+                    })
+                    var d = new Date(annoCorrente, meseCorrente - 1, 1)
+                    var weekendConsecutivi = 0
+                    var maxConsecutivi = 0
+                    while (d.getMonth() === meseCorrente - 1 && d <= oggi) {
+                        if (d.getDay() === 6) {
+                            var sabISO = toISO(d)
+                            var domISO = toISO(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1))
+                            if (dateSet[sabISO] === true && dateSet[domISO] === true) {
+                                weekendConsecutivi++
+                                if (weekendConsecutivi > maxConsecutivi) maxConsecutivi = weekendConsecutivi
+                            } else {
+                                weekendConsecutivi = 0
+                            }
+                        }
+                        d.setDate(d.getDate() + 1)
+                    }
+                    return maxConsecutivi
+                }
+
+                function contaGiorni10Fila(lista) {
+                    var dateSet = {}
+                    lista.forEach(r => { if (r.data_fruizione && r.data_fruizione !== "") dateSet[r.data_fruizione] = true })
+                    var date = Object.keys(dateSet).sort()
+                    var maxSeq = 0, seq = 0
+                    for (var i = 0; i < date.length; i++) {
+                        var prev = new Date(toDate(date[i])); prev.setDate(prev.getDate() - 1)
+                        seq = dateSet[toISO(prev)] ? seq + 1 : 1
+                        if (seq > maxSeq) maxSeq = seq
+                    }
+                    return maxSeq
+                }
+
+                // ── 2. VARIABILI E FILTRO ─────────────────────────────────────────
+
+                var _oggi = new Date()
+                var _mese = _oggi.getMonth() + 1
+                var _anno = _oggi.getFullYear()
+                var oggiISO = toISO(_oggi)
+                var primoMeseISO = toISO(new Date(_anno, _mese - 1, 1))
+                var fineMesseISO = toISO(new Date(_anno, _mese, 0))
+
+                // Tutto il mese (per Camaleonte — include date future del mese)
+                var tuttiMese = riposi.filter(r =>
+                    r && r.data_fruizione && r.data_fruizione !== "" &&
+                    r.data_fruizione >= primoMeseISO &&
+                    r.data_fruizione <= fineMesseISO
+                )
+
+                // Solo fino a oggi, senza licenze parziali (per tutti gli altri badge)
+                var tuttiInsieme = tuttiMese.filter(r =>
+                    r.data_fruizione <= oggiISO && !isLicenzaParziale(r)
+                )
+
+                // ── 3. VALUTAZIONE BADGE ──────────────────────────────────────────
+
+                var candidati = []
+
+                // CAMALEONTE — usa tuttiMese (include date future del mese)
+                var hasCamaleonte = false
+                for (var k = 0; k < tuttiMese.length; k++) {
+                    if (!isLicenzaParziale(tuttiMese[k]) &&
+                        (mappaColleghi[tuttiMese[k].data_fruizione] || 0) >= 7) {
+                        hasCamaleonte = true
+                        break
+                    }
+                }
+                if (hasCamaleonte)
+                    candidati.push({ nome: "Il Camaleonte", livello: 1, colore: "#C0C0C0" })
+
+                if (checkMordiFuggi(tuttiInsieme))
+                    candidati.push({ nome: "Mordi e fuggi", livello: 1, colore: "#C0C0C0" })
+
+                if (contaWeekendPieni(tuttiInsieme) >= 2)
+                    candidati.push({ nome: "L'Architetto", livello: 2, colore: "#FFD700"})
+
+                if (contaWeekendGuerriero(tuttiInsieme) >= 2)
+                    candidati.push({ nome: "Il Guerriero", livello: 2, colore: "#FFD700"})
+
+                if (checkTetris(tuttiInsieme))
+                    candidati.push({ nome: "Tetris", livello: 2, colore: "#FFD700"})
+
+                if (tuttiSabatiRiposo(tuttiInsieme))
+                    candidati.push({ nome: "Febbre del Sabato Sera", livello: 2, colore: "#FFD700"})
+
+                if (contaWeekendCompleti(tuttiInsieme) >= 3)
+                    candidati.push({ nome: "Re dei Ponti", livello: 3, colore: "#b9f2ff"})
+
+                if (contaGiorni10Fila(tuttiInsieme) >= 10)
+                    candidati.push({ nome: "Turista per sempre", livello: 3, colore: "#b9f2ff"})
+
+                if (contaWeekendSenzaRiposo(tuttiInsieme) >= 3)
+                    candidati.push({ nome: "Supereroe", livello: 3, colore: "#b9f2ff"})
+
+                if (tutteDomeniche(tuttiInsieme))
+                    candidati.push({ nome: "Il Papa", livello: 3, colore: "#b9f2ff" })
+
+                var festiviSet = {}
+                tuttiInsieme.forEach(r => {
+                    if (r.tipo && r.tipo.toUpperCase().includes("FESTIV"))
+                        festiviSet[r.data_fruizione] = true
+                })
+                var giornataLeoni = false
+                if (dettaglioStr) {
+                    for (var s = 0; s < dettaglioStr.length; s++) {
+                        var dISO = dettaglioStr[s].dataISO
+                        var ore  = dettaglioStr[s].ore
+                        var dataStr = toDate(dISO)
+                        var isDomenica = (dataStr.getDay() === 0)
+                        var isFestivo  = festiviSet[dISO] === true
+                        if ((isDomenica || isFestivo) && ore >= 4) { giornataLeoni = true; break }
+                    }
+                }
+                if (giornataLeoni)
+                    candidati.push({ nome: "Giornata da Leoni", livello: 2, colore: "#FFD700"})
+
+                var sprintFuoco = false
+                if (dettaglioStr) {
+                    // Trova il primo lunedì della prima settimana completa del mese
+                    var primoDelMese = new Date(_anno, _mese - 1, 1)
+                    var primoLunedi = new Date(primoDelMese)
+                    // Se il 1° non è lunedì, vai avanti fino al primo lunedì
+                    while (primoLunedi.getDay() !== 1)
+                        primoLunedi.setDate(primoLunedi.getDate() + 1)
+                    var ultimoGiornoSettimana = new Date(primoLunedi)
+                    ultimoGiornoSettimana.setDate(primoLunedi.getDate() + 6) // domenica della stessa settimana
+
+                    var oreSettimana = 0
+                    for (var w = 0; w < dettaglioStr.length; w++) {
+                        var dW = toDate(dettaglioStr[w].dataISO)
+                        if (dW >= primoLunedi && dW <= ultimoGiornoSettimana)
+                            oreSettimana += dettaglioStr[w].ore
+                    }
+                    if (oreSettimana >= 10) sprintFuoco = true
+                }
+                if (sprintFuoco)
+                    candidati.push({ nome: "Sprint di Fuoco", livello: 3, colore: "#b9f2ff"})
+
+                if (candidati.length === 0)
+                    return { best: { nome: "", livello: 0, colore: "#888888"}, tutti: [] }
+
+                var best = candidati[0]
+                for (var j = 1; j < candidati.length; j++) {
+                    if (candidati[j].livello >= best.livello) best = candidati[j]
+                }
+                return { best: best, tutti: candidati }
+            }
 
             header: ToolBar {
                 id: menuHeader
-                Text {
-                    id: txtNewPlus
-                    text: "NOTIFICHE"
-                    color: "red"
-                    font.bold: true
-                    visible: paginaMenu.mostraNotifica
+                height: 100
+
+                Row {
+                    id: badgeEmblema
                     anchors.left: parent.left
-                    anchors.leftMargin: 15
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 6
+                    anchors.top: parent.top
+                    anchors.topMargin: 6
+                    spacing: 5
+                    visible: paginaMenu.tuttiBadge.length > 0
+
+                    Repeater {
+                        model: paginaMenu.tuttiBadge
+                        delegate: Rectangle {
+                            height: 36
+                            width: badgeCol.width + 20
+                            radius: 8
+                            color: modelData.colore
+                            border.color: modelData.livello === 3 ? "#00bcd4" : Qt.darker(modelData.colore, 1.3)
+                            border.width: 2
+
+                            SequentialAnimation on border.color {
+                                loops: Animation.Infinite
+                                running: modelData.livello === 3
+                                ColorAnimation { to: "#00bcd4"; duration: 900 }
+                                ColorAnimation { to: "#e0f7fa"; duration: 900 }
+                            }
+
+                            Column {
+                                id: badgeCol
+                                anchors.centerIn: parent
+                                spacing: 1
+                                Text {
+                                    text: modelData.nome
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    color: modelData.livello === 3 ? "#003344" : "white"
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    style: Text.Outline
+                                    styleColor: modelData.livello === 3 ? "transparent" : "#00000044"
+                                }
+                                Text {
+                                    text: modelData.livello === 1 ? "▲ ARGENTO"
+                                        : modelData.livello === 2 ? "★ ORO"
+                                        : "◆ DIAMANTE"
+                                    font.pixelSize: 9
+                                    font.bold: true
+                                    color: modelData.livello === 3 ? "#005577" : "white"
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    opacity: 0.85
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    popupDettaglioBadge.nomeBadge = modelData.nome
+                                    popupDettaglioBadge.livelloBadge = modelData.livello
+                                    popupDettaglioBadge.coloreBadge = modelData.colore
+                                    popupDettaglioBadge.open()
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // RIGA 2 — Notifiche sotto i badge
+                Rectangle {
+                    id: notificaBar
+                    anchors.left: parent.left
+                    anchors.leftMargin: 6
+                    anchors.top: badgeEmblema.bottom
+                    anchors.topMargin: 4
+                    visible: paginaMenu.mostraNotifica
+                    width: notificaText.width + 20
+                    height: 22
+                    radius: 5
+                    color: "#d32f2f"
+
                     SequentialAnimation on opacity {
                         loops: Animation.Infinite
-                        NumberAnimation { to: 0; duration: 500 }
-                        NumberAnimation { to: 1; duration: 500 }
+                        running: paginaMenu.mostraNotifica
+                        NumberAnimation { to: 0.4; duration: 500 }
+                        NumberAnimation { to: 1.0; duration: 500 }
                     }
+
+                    Text {
+                        id: notificaText
+                        text: "NOTIFICHE (" + window.notificheCount + ")"
+                        color: "white"
+                        font.bold: true
+                        font.pixelSize: 11
+                        anchors.centerIn: parent
+                    }
+
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
                             Backend.caricaDettagliNotifiche(parseInt(paginaMenu.idDatabase))
                             popupNotifiche.open()
-                        }   
+                        }
                     }
                 }
                 Label {
                     text: "MENU PRINCIPALE"
                     font.bold: true
                     anchors.centerIn: parent
+                    anchors.verticalCenterOffset: 20
                 }   
 
                 Rectangle {
@@ -204,11 +683,52 @@ Window {
                         }
                     }
                 }
+                Rectangle {
+                    id: rectMioProfilo
+                    anchors.right: rectGestioneBlocco.visible ? rectGestioneBlocco.left : parent.right
+                    anchors.rightMargin: rectGestioneBlocco.visible ? 10 : 15
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 100
+                    height: 38
+                    radius: 8
+                    color: "#1565C0"
+                    border.color: "#90CAF9"
+                    border.width: 2
+                    Text {
+                        text: "MIO PROFILO"
+                        color: "white"
+                        font.pixelSize: 11
+                        font.bold: true
+                        anchors.centerIn: parent
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            var oggi = new Date()
+                            // Usa toISO locale (come già fai in calcolaBadge)
+                            function toISO(d) {
+                                return d.getFullYear() + "-" +
+                                    ("0" + (d.getMonth()+1)).slice(-2) + "-" +
+                                    ("0" + d.getDate()).slice(-2)
+                            }
+                            var oggiISO = toISO(oggi)
+                            Backend.caricaStoricoBadge(paginaMenu.idDatabase, oggi.getFullYear())
+                            Backend.caricaRiposiAnnualiPerTipo(paginaMenu.idDatabase, oggi.getFullYear(), oggiISO)
+                            Backend.caricaOreStrAnnuali(paginaMenu.idDatabase, oggi.getFullYear(), oggiISO)
+                            popupProfilo.open()
+                        }
+                    }
+                }
             }
             Component.onCompleted: {
                 Qt.callLater(function() {
+                    console.log("ID DATABASE AL MOMENTO DEL CARICAMENTO:", idDatabase)
                     if (idDatabase !== "") {
                         Backend.contaNotificheNonLette(parseInt(idDatabase));
+                        let oggi = new Date();
+                        Backend.caricaOreBadgeMenu(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1);
+                        Backend.caricaDettaglioStraordinariMese(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1);
+                        Backend.caricaBadgeRiposi(idDatabase)
                     }
                 });
             }
@@ -220,33 +740,178 @@ Window {
                 onTriggered: {
                     if (idDatabase !== "") {
                         Backend.contaNotificheNonLette(parseInt(idDatabase))
+                        let oggi = new Date();
+                        Backend.caricaBadgeRiposi(idDatabase)
+                        Backend.caricaDettaglioStraordinariMese(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1)
                     }
                 }
             }
             Connections {
                 target: Backend
-                function onMostraNotificaChanged() { 
-                    if (Backend.mostraNotifica) {
-                        popupNotifica.open(); 
-                    }
-                }
                 function onNotificheRicevute(lista) {
                     paginaMenu.listaNotifiche = lista
                 }
+                function onOreBadgeMenuRicevute(totaleOre) {
+                    paginaMenu.oreStrMese = totaleOre
+                }
+                function onOperazioneCompletata(messaggio) {
+                    let oggi = new Date();
+                    Backend.caricaOreBadgeMenu(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1)
+                }
+                function onBadgeRiposiRicevuti(lista) {
+                    console.log("RIPOSI RICEVUTI:", JSON.stringify(lista))
+                    paginaMenu.listaRiposiRaw = lista
+                    paginaMenu.mappaColleghi = {}
+                    let oggiB = new Date()
+                    let primoMeseB = oggiB.getFullYear() + "-" + ("0" + (oggiB.getMonth() + 1)).slice(-2) + "-01"
+                    let fineMB = new Date(oggiB.getFullYear(), oggiB.getMonth() + 1, 0)
+                    let fineMISOB = paginaMenu.toISO(fineMB)
+
+                    let daRichiedere = lista.filter(function(r) {
+                        return r.data_fruizione && r.data_fruizione !== "" &&
+                               r.data_fruizione >= primoMeseB &&
+                               r.data_fruizione <= fineMISOB
+                    })
+
+                    if (daRichiedere.length === 0) {
+                        paginaMenu._attesaColleghi = 0
+                        var risultato = paginaMenu.calcolaBadge(lista, {}, paginaMenu.oreStrMese, paginaMenu.listaDettaglioStr)
+                        paginaMenu.badgeCorrente = risultato && risultato.best ? risultato.best : { nome: "", livello: 0, colore: "#888888"}
+                        paginaMenu.tuttiBadge = risultato && risultato.tutti ? risultato.tutti : []
+                        if (risultato && risultato.tutti && risultato.tutti.length > 0) {
+                            var _oggi = new Date()
+                            Backend.salvaBadgeMese(paginaMenu.idDatabase, _oggi.getFullYear(), _oggi.getMonth() + 1, risultato.tutti)
+                        }
+                        return 
+                    }
+
+                    paginaMenu._attesaColleghi = daRichiedere.length
+                    for (var i = 0; i < daRichiedere.length; i++) {
+                        Backend.contaColleghiPerData(paginaMenu.idDatabase, daRichiedere[i].data_fruizione)
+                    }
+                }
+                function onColleghiPerDataRicevuti(dataISO, count) {
+                    var mappa = paginaMenu.mappaColleghi
+                    mappa[dataISO] = count
+                    paginaMenu.mappaColleghi = mappa
+
+                    if (Object.keys(paginaMenu.mappaColleghi).length === paginaMenu._attesaColleghi) {
+                        var risultato = paginaMenu.calcolaBadge(paginaMenu.listaRiposiRaw, paginaMenu.mappaColleghi, paginaMenu.oreStrMese, paginaMenu.listaDettaglioStr)
+                        paginaMenu.badgeCorrente = risultato && risultato.best ? risultato.best : { nome: "", livello: 0, colore: "#888888"}
+                        paginaMenu.tuttiBadge = risultato && risultato.tutti ? risultato.tutti : []
+                        if (risultato && risultato.tutti && risultato.tutti.length > 0) {
+                            var _oggi = new Date()
+                            Backend.salvaBadgeMese(paginaMenu.idDatabase, _oggi.getFullYear(), _oggi.getMonth() + 1, risultato.tutti)
+                        }
+                    }
+                }
+                function onDettaglioStraordinariRicevuti(lista) {
+                    paginaMenu.listaDettaglioStr = lista
+                    var risultato = paginaMenu.calcolaBadge(
+                        paginaMenu.listaRiposiRaw,
+                        paginaMenu.mappaColleghi,
+                        paginaMenu.oreStrMese,
+                        lista
+                    )
+                    paginaMenu.badgeCorrente = risultato && risultato.best ? risultato.best : { nome: "", livello: 0, colore: "#888888"}
+                    paginaMenu.tuttiBadge = risultato && risultato.tutti ? risultato.tutti : []
+                    if (risultato && risultato.tutti && risultato.tutti.length > 0) {
+                        var _oggi = new Date()
+                        Backend.salvaBadgeMese(paginaMenu.idDatabase, _oggi.getFullYear(), _oggi.getMonth() + 1, risultato.tutti)
+                    }
+                }
             }
+            
 
             ColumnLayout {
                 anchors.centerIn: parent
                 spacing: 15
                 width: parent.width * 0.8
 
-                Label {
-                    text: "Benvenuto, " + paginaMenu.utente
-                    horizontalAlignment: Text.AlignHCenter
+                Item {
                     Layout.fillWidth: true
-                    font.pixelSize: 18
-                    color: "#333"
+                    height: 200
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 6
+                        width: parent.width
+                        AnimatedImage {
+                            id: animalCanvas
+                            width: 130
+                            height: 130
+                            fillMode: Image.PreserveAspectFit
+                            playing: true
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            source: {
+                                let b = paginaMenu.badgeCorrente
+                                if (b.livello === 0) return "https://media0.giphy.com/media/1xkMJIvxeKiDS/giphy.gif"
+                                if (b.nome === "Mordi e fuggi")      return "https://media2.giphy.com/media/XZmjb11cwJdc7wotpe/giphy.gif"
+                                if (b.nome === "Il Camaleonte")       return "https://media2.giphy.com/media/Le5est4QxTgWynFs7l/giphy.gif"
+                                if (b.nome === "L'Architetto")        return "https://media2.giphy.com/media/A8WtEEVaoj1VVqE0I1/giphy.gif"
+                                if (b.nome === "Il Guerriero")        return "https://media2.giphy.com/media/odPv8LGSL0fTvigh1N/giphy.gif"
+                                if (b.nome === "Tetris")              return "https://media2.giphy.com/media/MOSebUr4rvZS0/giphy.gif"
+                                if (b.nome === "Febbre del Sabato Sera")   return "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmtwaXluMHlkaWwwbnZqeWh2YTJncWdsMGZ4NmNzeTJyem90cHI3MSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/Id67ff9s4Bc4O7M3fj/giphy.gif"
+                                if (b.nome === "Re dei Ponti")        return "https://media2.giphy.com/media/9cEyhVgNyeM9EYhOEC/giphy.gif"
+                                if (b.nome === "Turista per sempre")  return "https://media2.giphy.com/media/0gn0R3WCprTnIs9eB3/giphy.gif"
+                                if (b.nome === "Supereroe")           return "https://media2.giphy.com/media/kCd6XpV0TOMmmjqvo8/giphy.gif"
+                                if (b.nome === "Il Papa")             return "https://media2.giphy.com/media/m2lzGNOPx2UgE74kB2/giphy.gif"
+                                if (b.nome === "Giornata da Leoni") return "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExc3QxZTJ3YTBqejNsNGU1MDMzMWZ1MnNmdzU1Ymh3aDF6Zjh4b2k3dSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l1BUojJe4cno1U0CgL/giphy.gif"
+                                if (b.nome === "Sprint di Fuoco")   return "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2xybDdjMnIwazFpaWd5MmY0anA1cW4yczVhYWl2cWh5NGpleDZnaSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/YA6dmVW0gfIw8/giphy.gif"
+                                return "https://media0.giphy.com/media/1xkMJIvxeKiDS/giphy.gif"
+                            }
+                        }
+
+                        Label {
+                            text: "Benvenuto, " + paginaMenu.utente
+                            horizontalAlignment: Text.AlignHCenter
+                            width: parent.width
+                            font.pixelSize: 18
+                            color: "#333"
+                        }
+                        Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: 200
+                            height: 32
+                            radius: 16
+                            visible: paginaMenu.badgeCorrente.livello > 0
+                            color: paginaMenu.badgeCorrente.colore
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    popupDettaglioBadge.nomeBadge = paginaMenu.badgeCorrente.nome
+                                    popupDettaglioBadge.livelloBadge = paginaMenu.badgeCorrente.livello
+                                    popupDettaglioBadge.coloreBadge = paginaMenu.badgeCorrente.colore
+                                    popupDettaglioBadge.open()
+                                }
+                            }
+
+                            // Animazione bordo per DIAMANTE
+                            border.width: paginaMenu.badgeCorrente.livello === 3 ? 2 : 0
+                            border.color: "#80deea"
+
+                            SequentialAnimation on border.color {
+                                loops: Animation.Infinite
+                                running: paginaMenu.badgeCorrente.livello === 3
+                                ColorAnimation { to: "#00bcd4"; duration: 900 }
+                                ColorAnimation { to: "#e0f7fa"; duration: 900 }
+                            }
+
+                            Text {
+                                anchors.centerIn: parent
+                                font.pixelSize: 11
+                                font.bold: true
+                                color: paginaMenu.badgeCorrente.livello === 3 ? "#1a6080" : "white"
+                                text: {
+                                    var b = paginaMenu.badgeCorrente
+                                    if (b.livello === 0) return ""
+                                    var livStr = b.livello === 1 ? " ARGENTO" : (b.livello === 2 ? " ORO" : " DIAMANTE")
+                                    return b.nome + " —" + livStr
+                                }
+                            }
+                        }
+                    }
                 }
+
                 Label {
                     text: "⚠️ MODIFICHE BLOCCATE DALL'ADMIN"
                     color: "red"
@@ -260,6 +925,11 @@ Window {
                     text: "REPORT"
                     Layout.fillWidth: true
                     onClicked: stack.push(reportPage, {"idDatabase": paginaMenu.idDatabase})
+                }
+                Button {
+                    text: "STRAORDINARI"
+                    Layout.fillWidth: true
+                    onClicked: stack.push(straordinariPage, {"idDatabase": paginaMenu.idDatabase})
                 }
 
                 Button {
@@ -301,7 +971,8 @@ Window {
             }
             Popup {
                 id: popupNotifiche
-                anchors.centerIn: parent
+                x: 6
+                y: menuHeader.height + 8
                 width: parent.width * 0.88
                 modal: true
                 focus: true
@@ -362,6 +1033,410 @@ Window {
                             paginaMenu.listaNotifiche = []
                             popupNotifiche.close()
                         }
+                    }
+                }
+            }
+            Popup {
+                id: popupProfilo
+                x: 6
+                y: menuHeader.height + 8
+                width: parent.width - 12
+                height: parent.height - menuHeader.height - 16
+                modal: true
+                focus: true
+                closePolicy: Popup.CloseOnEscape
+
+                property var storicoBadge: []
+                property var riposiAnnuali: []
+                property double oreStrAnnuali: 0.0
+                property var badgeAggregati: []
+                property int meseFiltroSelezionato: -1  // -1 = anno intero
+                property double oreStrMeseFiltrato: 0.0
+
+                function aggiornaBadgeAggregati() {
+                    var mappa = {}
+                    var sorgente = meseFiltroSelezionato === -1
+                        ? storicoBadge
+                        : storicoBadge.filter(function(b) { return b.mese === meseFiltroSelezionato })
+                    for (var i = 0; i < sorgente.length; i++) {
+                        var b = sorgente[i]
+                        if (!mappa[b.nome_badge])
+                            mappa[b.nome_badge] = { nome: b.nome_badge, livello: b.livello, colore: b.colore, count: 0 }
+                        mappa[b.nome_badge].count++
+                    }
+                    badgeAggregati = Object.values(mappa)
+                }
+                onStoricoBadgeChanged: aggiornaBadgeAggregati()
+                onMeseFiltroSelezionatoChanged: {
+                    aggiornaBadgeAggregati()
+                    if (meseFiltroSelezionato !== -1) {
+                        var oggi = new Date()
+                        Backend.caricaOreStrMese(paginaMenu.idDatabase, oggi.getFullYear(), meseFiltroSelezionato)
+                    } else {
+                        oreStrMeseFiltrato = 0.0
+                    }
+                }
+                Connections {
+                    target: Backend
+                    function onStoricoBadgeRicevuto(lista) {
+                        console.log("STORICO BADGE RICEVUTO:", JSON.stringify(lista))
+                        popupProfilo.storicoBadge = lista
+                    }
+                    function onRiposiAnnualiRicevuti(lista) { popupProfilo.riposiAnnuali = lista }
+                    function onOreStrAnnualiRicevute(totale) { popupProfilo.oreStrAnnuali = totale }
+                    function onOreStrMeseRicevute(totale) { popupProfilo.oreStrMeseFiltrato = totale }
+                }
+
+                background: Rectangle { radius: 12; color: "white"; border.color: "#1565C0"; border.width: 2 }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 14
+
+                    // INTESTAZIONE
+                    Label {
+                        text: " MIO PROFILO"
+                        font.bold: true
+                        font.pixelSize: 18
+                        color: "#1565C0"
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#1565C0"; opacity: 0.3 }
+
+                    // BADGE MESE CORRENTE IN PRIMO PIANO
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 70
+                        radius: 10
+                        color: paginaMenu.badgeCorrente.colore !== "" ? paginaMenu.badgeCorrente.colore : "#eeeeee"
+                        border.color: paginaMenu.badgeCorrente.livello === 3 ? "#00bcd4" : Qt.darker(paginaMenu.badgeCorrente.colore || "#aaa", 1.3)
+                        border.width: 2
+                        visible: paginaMenu.badgeCorrente.livello > 0
+
+                        SequentialAnimation on border.color {
+                            loops: Animation.Infinite
+                            running: paginaMenu.badgeCorrente.livello === 3
+                            ColorAnimation { to: "#00bcd4"; duration: 900 }
+                            ColorAnimation { to: "#e0f7fa"; duration: 900 }
+                        }
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 12
+
+                            AnimatedImage {
+                                width: 54; height: 54
+                                fillMode: Image.PreserveAspectFit
+                                playing: popupProfilo.visible
+                                source: popupProfilo.visible && paginaMenu.badgeCorrente.nome !== ""
+                                        ? popupDettaglioBadge.gifPerBadge(paginaMenu.badgeCorrente.nome) : ""
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
+                                Text {
+                                    text: paginaMenu.badgeCorrente.nome
+                                    font.pixelSize: 20; font.bold: true
+                                    color: paginaMenu.badgeCorrente.livello === 3 ? "#003344" : "white"
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                }
+                                Text {
+                                    text: "BADGE DEL MESE  •  " + (
+                                        paginaMenu.badgeCorrente.livello === 1 ? "▲ ARGENTO"
+                                        : paginaMenu.badgeCorrente.livello === 2 ? "★ ORO"
+                                        : "◆ DIAMANTE")
+                                    font.pixelSize: 11
+                                    color: paginaMenu.badgeCorrente.livello === 3 ? "#005577" : "white"
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    opacity: 0.9
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                    // STORICO BADGE ANNO
+                    Label {
+                        text: "BADGE GUADAGNATI QUEST'ANNO"
+                        font.bold: true
+                        font.pixelSize: 13
+                        color: "#333"
+                    }
+                    ListView {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Math.min(popupProfilo.badgeAggregati.length * 38 + 4, 120)
+                        clip: true
+                        model: popupProfilo.badgeAggregati
+                        delegate: Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: index % 2 === 0 ? "#f5f8ff" : "white"
+                            border.color: "#e0e0e0"
+                            border.width: 1
+                            Row {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 10
+                                Text { text: modelData.nome; font.bold: true; font.pixelSize: 13; color: "#222"; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: "x" + modelData.count + " volte"; font.pixelSize: 12; color: "#1565C0"; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    popupDettaglioBadge.nomeBadge = modelData.nome
+                                    popupDettaglioBadge.livelloBadge = modelData.livello
+                                    popupDettaglioBadge.coloreBadge = modelData.colore
+                                    popupDettaglioBadge.open()
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                    // STRAORDINARI ANNUALI / MESE
+                    Label {
+                        text: popupProfilo.meseFiltroSelezionato === -1 ? "STRAORDINARI QUEST'ANNO" : "STRAORDINARI DEL MESE"
+                        font.bold: true
+                        font.pixelSize: 13
+                        color: "#333"
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 40
+                        radius: 8
+                        color: "#E3F2FD"
+                        border.color: "#2196F3"
+                        border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: popupProfilo.meseFiltroSelezionato === -1
+                                  ? popupProfilo.oreStrAnnuali.toFixed(1) + " ore totali"
+                                  : popupProfilo.oreStrMeseFiltrato.toFixed(1) + " ore"
+                            font.bold: true
+                            font.pixelSize: 15
+                            color: "#1565C0"
+                        }
+                    }
+
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                    // RIPOSI PER TIPO — label + pulsante reset
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Label {
+                            text: "RIPOSI FRUITI QUEST'ANNO PER TIPO"
+                            font.bold: true
+                            font.pixelSize: 13
+                            color: "#333"
+                            Layout.fillWidth: true
+                        }
+                        Rectangle {
+                            visible: popupProfilo.meseFiltroSelezionato !== -1
+                            width: 60
+                            height: 22
+                            radius: 5
+                            color: "#e53935"
+                            Text { anchors.centerIn: parent; text: "✕ TUTTI"; font.pixelSize: 10; font.bold: true; color: "white" }
+                            MouseArea { anchors.fill: parent; onClicked: popupProfilo.meseFiltroSelezionato = -1 }
+                        }
+                    }
+
+                    // GRIGLIA MESI
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 6
+                        rowSpacing: 4
+                        columnSpacing: 4
+                        Repeater {
+                            model: [
+                                { n: 1,  label: "GEN" }, { n: 2,  label: "FEB" },
+                                { n: 3,  label: "MAR" }, { n: 4,  label: "APR" },
+                                { n: 5,  label: "MAG" }, { n: 6,  label: "GIU" },
+                                { n: 7,  label: "LUG" }, { n: 8,  label: "AGO" },
+                                { n: 9,  label: "SET" }, { n: 10, label: "OTT" },
+                                { n: 11, label: "NOV" }, { n: 12, label: "DIC" }
+                            ]
+                            delegate: Rectangle {
+                                Layout.fillWidth: true
+                                height: 28
+                                radius: 6
+                                color: popupProfilo.meseFiltroSelezionato === modelData.n ? "#1565C0" : "#E3F2FD"
+                                border.color: popupProfilo.meseFiltroSelezionato === modelData.n ? "#0D47A1" : "#90CAF9"
+                                border.width: 1
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: modelData.label
+                                    font.pixelSize: 11
+                                    font.bold: popupProfilo.meseFiltroSelezionato === modelData.n
+                                    color: popupProfilo.meseFiltroSelezionato === modelData.n ? "white" : "#1565C0"
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        if (popupProfilo.meseFiltroSelezionato === modelData.n)
+                                            popupProfilo.meseFiltroSelezionato = -1
+                                        else
+                                            popupProfilo.meseFiltroSelezionato = modelData.n
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // LABEL MESE ATTIVO
+                    Label {
+                        visible: popupProfilo.meseFiltroSelezionato !== -1
+                        text: {
+                            var nomi = ["","Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
+                                        "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"]
+                            return " Dati di " + nomi[popupProfilo.meseFiltroSelezionato]
+                        }
+                        font.pixelSize: 11
+                        font.bold: true
+                        color: "#1565C0"
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+
+                    // BADGE DEL MESE SELEZIONATO
+                    Label {
+                        visible: popupProfilo.meseFiltroSelezionato !== -1
+                        text: "Badge del mese:"
+                        font.pixelSize: 12
+                        font.bold: true
+                        color: "#555"
+                    }
+                    ListView {
+                        visible: popupProfilo.meseFiltroSelezionato !== -1
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: {
+                            var n = popupProfilo.storicoBadge.filter(function(b) {
+                                return b.mese === popupProfilo.meseFiltroSelezionato
+                            }).length
+                            return n === 0 ? 30 : Math.min(n * 38 + 4, 120)
+                        }
+                        clip: true
+                        model: popupProfilo.storicoBadge.filter(function(b) {
+                            return b.mese === popupProfilo.meseFiltroSelezionato
+                        })
+                        delegate: Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: index % 2 === 0 ? "#f5f8ff" : "white"
+                            border.color: "#e0e0e0"
+                            border.width: 1
+                            Row {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 10
+                                Rectangle {
+                                    width: badgeTxt.width + 16
+                                    height: 22
+                                    radius: 5
+                                    color: modelData.colore
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    Text {
+                                        id: badgeTxt
+                                        anchors.centerIn: parent
+                                        text: modelData.nome_badge
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                        color: modelData.livello === 3 ? "#003344" : "white"
+                                    }
+                                }
+                                Text {
+                                    text: modelData.livello === 1 ? "▲ ARGENTO"
+                                        : modelData.livello === 2 ? "★ ORO"
+                                        : "◆ DIAMANTE"
+                                    font.pixelSize: 11
+                                    color: "#888"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    popupDettaglioBadge.nomeBadge = modelData.nome_badge
+                                    popupDettaglioBadge.livelloBadge = modelData.livello
+                                    popupDettaglioBadge.coloreBadge = modelData.colore
+                                    popupDettaglioBadge.open()
+                                }
+                            }
+                        }
+                        Label {
+                            anchors.centerIn: parent
+                            visible: popupProfilo.storicoBadge.filter(function(b) {
+                                return b.mese === popupProfilo.meseFiltroSelezionato
+                            }).length === 0
+                            text: "Nessun badge questo mese"
+                            color: "gray"
+                            font.pixelSize: 11
+                        }
+                    }
+
+                    // RIPOSI PER TIPO (filtrati)
+                    ListView {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        model: {
+                            var mappa = {}
+                            var filtroMese = popupProfilo.meseFiltroSelezionato
+                            for (var j = 0; j < popupProfilo.riposiAnnuali.length; j++) {
+                                var r = popupProfilo.riposiAnnuali[j]
+                                var nota = (r.a || "").toUpperCase()
+                                if (nota.includes("MAT") || nota.includes("CIT") ||
+                                    nota.includes("POM") || nota.includes("SER")) continue
+                                if (filtroMese !== -1) {
+                                    var parti = (r.data || "").split("-")
+                                    if (parti.length < 2 || parseInt(parti[1]) !== filtroMese) continue
+                                }
+                                var tipo = r.tipo || "SCONOSCIUTO"
+                                mappa[tipo] = (mappa[tipo] || 0) + 1
+                            }
+                            return Object.keys(mappa).map(function(k) {
+                                return { tipo: k, count: mappa[k] }
+                            })
+                        }
+                        delegate: Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: index % 2 === 0 ? "#f5f8ff" : "white"
+                            border.color: "#e0e0e0"
+                            border.width: 1
+                            Row {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 10
+                                Text {
+                                    text: modelData.tipo
+                                    font.pixelSize: 12
+                                    color: "#444"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    Layout.fillWidth: true
+                                }
+                                Text {
+                                    text: modelData.count + " giorni"
+                                    font.bold: true
+                                    font.pixelSize: 12
+                                    color: "#388E3C"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                        }
+                    }
+
+                    Button {
+                        text: "CHIUDI"
+                        Layout.fillWidth: true
+                        onClicked: popupProfilo.close()
                     }
                 }
             }
@@ -673,6 +1748,37 @@ Window {
                                         anchors.left: parent.left; anchors.leftMargin: 8;
                                         anchors.verticalCenter: parent.verticalCenter;
                                         font.pixelSize: 11; font.bold: true
+                                        color: "#1565C0"
+                                        font.underline: true
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            // Trova l'id_reale di questo utente dai datiRiposi
+                                            var idTrovato = ""
+                                            for (var i = 0; i < paginaSpecchio.datiRiposi.length; i++) {
+                                                if (paginaSpecchio.datiRiposi[i].u === utenteDellaRiga) {
+                                                    idTrovato = String(paginaSpecchio.datiRiposi[i].id_reale)
+                                                    break
+                                                }
+                                            }
+                                            if (idTrovato === "" || idTrovato === paginaSpecchio.idDatabase) return
+                                            var oggi = new Date()
+                                            var oggiISO = oggi.getFullYear() + "-" +
+                                                ("0"+(oggi.getMonth()+1)).slice(-2) + "-" +
+                                                ("0"+oggi.getDate()).slice(-2)
+                                            popupProfiloAltro.nomeUtente = utenteDellaRiga
+                                            popupProfiloAltro.idUtente   = idTrovato
+                                            popupProfiloAltro.storicoBadge   = []
+                                            popupProfiloAltro.riposiAnnuali  = []
+                                            popupProfiloAltro.oreStr         = 0
+                                            popupProfiloAltro.caricamentoBadge   = true
+                                            popupProfiloAltro.caricamentoRiposi  = true
+                                            popupProfiloAltro.caricamentoOre     = true
+                                            Backend.caricaProfiloAltroUtente(idTrovato, oggi.getFullYear(), oggiISO)
+                                            popupProfiloAltro.open()
+                                        }
                                     }
                                 }
                                 Repeater {
@@ -996,6 +2102,325 @@ Window {
                             popupLicenza.close()
                             }
                         }
+                    }
+                }
+            }
+            Popup {
+                id: popupProfiloAltro
+                anchors.centerIn: parent
+                width: parent.width - 12
+                height: parent.height * 0.92
+                modal: true
+                focus: true
+                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+                property string nomeUtente: ""
+                property string idUtente: ""
+                property var storicoBadge: []
+                property var riposiAnnuali: []
+                property double oreStr: 0.0
+                property bool caricamentoBadge: false
+                property bool caricamentoRiposi: false
+                property bool caricamentoOre: false
+                readonly property bool isLoading: caricamentoBadge || caricamentoRiposi || caricamentoOre
+                property var badgeMeseCorrente: ({ nome: "", livello: 0, colore: "#888" })
+                property var badgeAggregati: []
+
+                function aggiornaDati() {
+                    var meseCor = new Date().getMonth() + 1
+                    var best = { nome: "", livello: 0, colore: "#888" }
+                    for (var i = 0; i < storicoBadge.length; i++) {
+                        var b = storicoBadge[i]
+                        if (b.mese === meseCor && b.livello >= best.livello) best = b
+                    }
+                    badgeMeseCorrente = best
+
+                    var mappa = {}
+                    for (var j = 0; j < storicoBadge.length; j++) {
+                        var bj = storicoBadge[j]
+                        if (!mappa[bj.nome_badge])
+                            mappa[bj.nome_badge] = { nome: bj.nome_badge, livello: bj.livello, colore: bj.colore, count: 0 }
+                        mappa[bj.nome_badge].count++
+                    }
+                    badgeAggregati = Object.values(mappa)
+                }
+
+                onStoricoBadgeChanged: aggiornaDati()
+
+                Connections {
+                    target: Backend
+                    function onProfiloAltroStoricoBadge(lista) {
+                        popupProfiloAltro.storicoBadge = lista
+                        popupProfiloAltro.caricamentoBadge = false
+                    }
+                    function onProfiloAltroRiposiAnnuali(lista) {
+                        popupProfiloAltro.riposiAnnuali = lista
+                        popupProfiloAltro.caricamentoRiposi = false
+                    }
+                    function onProfiloAltroOreStr(totale) {
+                        popupProfiloAltro.oreStr = totale
+                        popupProfiloAltro.caricamentoOre = false
+                    }
+                }
+
+                background: Rectangle {
+                    radius: 12
+                    color: "white"
+                    border.color: "#1565C0"
+                    border.width: 2
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 14
+
+                    // INTESTAZIONE
+                    Item {
+                        Layout.fillWidth: true
+                        height: nameLabel.implicitHeight
+                        Label {
+                            id: nameLabel
+                            text: "  " + popupProfiloAltro.nomeUtente
+                            font.bold: true
+                            font.pixelSize: 18
+                            color: "#1565C0"
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            opacity: 0
+                            y: -10
+                            SequentialAnimation {
+                                running: popupProfiloAltro.visible
+                                ParallelAnimation {
+                                    NumberAnimation { target: nameLabel; property: "opacity"; to: 1.0; duration: 400; easing.type: Easing.OutCubic }
+                                    NumberAnimation { target: nameLabel; property: "y"; to: 0; duration: 400; easing.type: Easing.OutCubic }
+                                }
+                            }
+                        }
+                    }
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#1565C0"; opacity: 0.3 }
+
+                    // LOADING
+                    Label {
+                        visible: popupProfiloAltro.isLoading
+                        text: "⏳ Caricamento..."
+                        color: "#888"
+                        font.pixelSize: 13
+                        Layout.alignment: Qt.AlignHCenter
+                        SequentialAnimation on opacity {
+                            loops: Animation.Infinite
+                            running: popupProfiloAltro.isLoading
+                            NumberAnimation { to: 0.3; duration: 500 }
+                            NumberAnimation { to: 1.0; duration: 500 }
+                        }
+                    }
+
+                    // BADGE MESE CORRENTE
+                    Rectangle {
+                        id: rectBadgeMese
+                        Layout.fillWidth: true
+                        height: 70
+                        radius: 10
+                        visible: !popupProfiloAltro.isLoading && popupProfiloAltro.badgeMeseCorrente.livello > 0
+                        color: popupProfiloAltro.badgeMeseCorrente.colore !== ""
+                            ? popupProfiloAltro.badgeMeseCorrente.colore : "#eeeeee"
+                        border.color: popupProfiloAltro.badgeMeseCorrente.livello === 3 ? "#00bcd4"
+                                    : Qt.darker(popupProfiloAltro.badgeMeseCorrente.colore || "#aaa", 1.3)
+                        border.width: 2
+
+                        SequentialAnimation on border.color {
+                            loops: Animation.Infinite
+                            running: popupProfiloAltro.visible && popupProfiloAltro.badgeMeseCorrente.livello === 3
+                            ColorAnimation { to: "#00bcd4"; duration: 900 }
+                            ColorAnimation { to: "#e0f7fa"; duration: 900 }
+                        }
+                        opacity: 1
+                        SequentialAnimation on border.width {
+                            loops: Animation.Infinite
+                            running: popupProfiloAltro.visible && popupProfiloAltro.badgeMeseCorrente.livello > 0
+                            NumberAnimation { to: 3; duration: 800; easing.type: Easing.InOutSine }
+                            NumberAnimation { to: 1; duration: 800; easing.type: Easing.InOutSine }
+                        }
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 12
+
+                            AnimatedImage {
+                                width: 54; height: 54
+                                fillMode: Image.PreserveAspectFit
+                                playing: popupProfiloAltro.visible
+                                source: popupProfiloAltro.visible && (popupProfiloAltro.badgeMeseCorrente.nome_badge || popupProfiloAltro.badgeMeseCorrente.nome || "") !== ""
+                                        ? popupDettaglioBadge.gifPerBadge(popupProfiloAltro.badgeMeseCorrente.nome_badge || popupProfiloAltro.badgeMeseCorrente.nome || "") : ""
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
+                                Text {
+                                    text: popupProfiloAltro.badgeMeseCorrente.nome_badge
+                                        || popupProfiloAltro.badgeMeseCorrente.nome || ""
+                                    font.pixelSize: 20; font.bold: true
+                                    color: popupProfiloAltro.badgeMeseCorrente.livello === 3 ? "#003344" : "white"
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                }
+                                Text {
+                                    text: "BADGE DEL MESE  •  " + (
+                                        popupProfiloAltro.badgeMeseCorrente.livello === 1 ? "▲ ARGENTO"
+                                        : popupProfiloAltro.badgeMeseCorrente.livello === 2 ? "★ ORO"
+                                        : "◆ DIAMANTE")
+                                    font.pixelSize: 11
+                                    color: popupProfiloAltro.badgeMeseCorrente.livello === 3 ? "#005577" : "white"
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    opacity: 0.9
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                var b = popupProfiloAltro.badgeMeseCorrente
+                                popupDettaglioBadge.nomeBadge    = b.nome_badge || b.nome || ""
+                                popupDettaglioBadge.livelloBadge = b.livello
+                                popupDettaglioBadge.coloreBadge  = b.colore
+                                popupDettaglioBadge.open()
+                            }
+                        }
+                    }
+
+                    // Nessun badge mese
+                    Label {
+                        visible: !popupProfiloAltro.isLoading && popupProfiloAltro.badgeMeseCorrente.livello === 0
+                        text: "Nessun badge questo mese"
+                        color: "gray"; font.pixelSize: 12; font.italic: true
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                    // BADGE GUADAGNATI QUEST'ANNO
+                    Label {
+                        text: "BADGE GUADAGNATI QUEST'ANNO"
+                        font.bold: true; font.pixelSize: 13; color: "#333"
+                    }
+
+                    ListView {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: popupProfiloAltro.badgeAggregati.length > 0 ? Math.min(popupProfiloAltro.badgeAggregati.length * 38 + 4, 150) : 0
+                        clip: true
+                        model: popupProfiloAltro.badgeAggregati
+                        delegate: Rectangle {
+                            width: parent.width
+                            height: 34
+                            radius: 6
+                            color: index % 2 === 0 ? "#f5f8ff" : "white"
+                            border.color: "#e0e0e0"; border.width: 1
+                            opacity: 1
+                            Row {
+                                anchors.fill: parent; anchors.margins: 8; spacing: 10
+                                Text {
+                                    text: modelData.nome
+                                    font.bold: true; font.pixelSize: 13; color: "#222"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "x" + modelData.count + " volte"
+                                    font.pixelSize: 12; color: "#1565C0"; font.bold: true
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    popupDettaglioBadge.nomeBadge    = modelData.nome
+                                    popupDettaglioBadge.livelloBadge = modelData.livello
+                                    popupDettaglioBadge.coloreBadge  = modelData.colore
+                                    popupDettaglioBadge.open()
+                                }
+                            }
+                        }
+                    }
+
+                    Label {
+                        visible: !popupProfiloAltro.isLoading && popupProfiloAltro.badgeAggregati.length === 0
+                        text: "Nessun badge questo anno"
+                        color: "gray"; font.pixelSize: 12; font.italic: true
+                    }
+
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                    // STRAORDINARI QUEST'ANNO
+                    Label {
+                        text: "STRAORDINARI QUEST'ANNO"
+                        font.bold: true; font.pixelSize: 13; color: "#333"
+                    }
+                    Rectangle {
+                        id: rectOreAltro
+                        Layout.fillWidth: true; height: 40; radius: 8
+                        color: "#E3F2FD"; border.color: "#2196F3"; border.width: 1
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: popupProfiloAltro.oreStr.toFixed(1) + " ore totali"
+                            font.bold: true; font.pixelSize: 15; color: "#1565C0"
+                        }
+                    }
+
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                    // RIPOSI PER TIPO
+                    Label {
+                        text: "RIPOSI FRUITI QUEST'ANNO PER TIPO"
+                        font.bold: true; font.pixelSize: 13; color: "#333"
+                    }
+
+                    ListView {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: popupProfiloAltro.riposiAnnuali.length > 0 ? Math.min(popupProfiloAltro.riposiAnnuali.length * 38 + 4, 160) : 0
+                        clip: true
+                        model: {
+                            var mappa = {}
+                            for (var j = 0; j < popupProfiloAltro.riposiAnnuali.length; j++) {
+                                var r = popupProfiloAltro.riposiAnnuali[j]
+                                var nota = (r.a || "").toUpperCase()
+                                if (nota.includes("MAT") || nota.includes("CIT") ||
+                                    nota.includes("POM") || nota.includes("SER")) continue
+                                var tipo = r.tipo || "SCONOSCIUTO"
+                                mappa[tipo] = (mappa[tipo] || 0) + 1
+                            }
+                            return Object.keys(mappa).map(function(k) { return { tipo: k, count: mappa[k] } })
+                        }
+                        delegate: Rectangle {
+                            width: parent.width; height: 34; radius: 6
+                            color: index % 2 === 0 ? "#f5f8ff" : "white"
+                            border.color: "#e0e0e0"; border.width: 1
+                            opacity: 1
+                            Row {
+                                anchors.fill: parent; anchors.margins: 8; spacing: 10
+                                Text {
+                                    text: modelData.tipo; font.pixelSize: 12; color: "#444"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: modelData.count + " giorni"
+                                    font.bold: true; font.pixelSize: 12; color: "#388E3C"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                        }
+                    }
+
+                    Label {
+                        visible: !popupProfiloAltro.isLoading && popupProfiloAltro.riposiAnnuali.length === 0
+                        text: "Nessun riposo registrato"
+                        color: "gray"; font.pixelSize: 12; font.italic: true
+                    }
+
+                    Button {
+                        text: "CHIUDI"
+                        Layout.fillWidth: true
+                        onClicked: popupProfiloAltro.close()
                     }
                 }
             }
@@ -1456,6 +2881,20 @@ Window {
                         text: "CONFERMA FRUIZIONE"
                         Layout.fillWidth: true
                         onClicked: {
+                            // Controlla che la data inserita non sia nel passato
+                            var parti = dataFruizioneInput.text.split("-")
+                            if (parti.length !== 3) {
+                                globalErrorLabel.text = "Inserisci una data valida nel formato GG-MM-AAAA."
+                                globalErrorPopup.open()
+                                return
+                            }
+                            var dataScelta = new Date(parseInt(parti[2]), parseInt(parti[1]) - 1, parseInt(parti[0]))
+                            var oggi = new Date(); oggi.setHours(0,0,0,0)
+                            if (dataScelta < oggi) {
+                                globalErrorLabel.text = "Non puoi fruire di un giorno in data precedente a oggi."
+                                globalErrorPopup.open()
+                                return
+                            }
                             Backend.fruisciRiposo(idDatabase, selectedDataMaturazioneISO.text, dataFruizioneInput.text, comboStato.currentIndex + 1)
                             popupFruisci.close()
                         }
@@ -1646,7 +3085,339 @@ Window {
             }
         }
     }
+    Component {
+        id: straordinariPage
+        Page {
+            id: paginaStraordinari
+            property string idDatabase: ""
+            property var listaStraordinari: []
+            property double totaleOre: 0.0
 
+            function ricarica() {
+                let anno = parseInt(comboAnnoStr.currentText)
+                let mese = comboMeseStr.currentIndex + 1
+                if (isNaN(anno)) return
+                Backend.caricaStraordinariMese(idDatabase, anno, mese)
+            }
+
+            Connections {
+                target: Backend
+                function onStraordinariRicevuti(lista, totale) {
+                    paginaStraordinari.listaStraordinari = lista
+                    paginaStraordinari.totaleOre = totale
+                }
+                function onOperazioneCompletata(messaggio) {
+                    paginaStraordinari.ricarica()
+                }
+            }
+
+            Component.onCompleted: {
+                let oggi = new Date()
+                Backend.caricaStraordinariMese(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1)
+            }
+
+            header: ToolBar {
+                RowLayout {
+                    anchors.fill: parent
+                    ToolButton { text: "‹"; onClicked: stack.pop() }
+                    Label {
+                        text: "Straordinari"
+                        font.bold: true
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    ComboBox {
+                        id: comboMeseStr
+                        Layout.preferredWidth: 110
+                        model: ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
+                                "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"]
+                        Component.onCompleted: currentIndex = new Date().getMonth()
+                        onActivated: paginaStraordinari.ricarica()
+                    }
+                    ComboBox {
+                        id: comboAnnoStr
+                        Layout.preferredWidth: 80
+                        model: {
+                            let a = []; let y = new Date().getFullYear()
+                            for (let i = y - 1; i <= y + 1; i++) a.push(i.toString())
+                            return a
+                        }
+                        Component.onCompleted: {
+                            let y = new Date().getFullYear().toString()
+                            for (let i = 0; i < model.length; i++)
+                                if (model[i] === y) { currentIndex = i; break }
+                        }
+                        onActivated: paginaStraordinari.ricarica()
+                    }
+                }
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 10
+
+                // --- BADGE ANIMATO ---
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 100
+                    radius: 12
+                    color: {
+                        let ore = paginaStraordinari.totaleOre
+                        if (ore <= 0)   return "#eeeeee"
+                        if (ore <= 5)   return "#f5deb3"
+                        if (ore <= 15)  return "#e8e8e8"
+                        if (ore <= 30)  return "#fff9c4"
+                        return "#e0f7fa"
+                    }
+                    border.color: Qt.darker(color, 1.2)
+                    border.width: 2
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 12
+
+                        AnimatedImage {
+                            id: animalCanvasStr
+                            width: 80
+                            height: 80
+                            fillMode: Image.PreserveAspectFit
+                            playing: true
+                            source: {
+                                let ore = paginaStraordinari.totaleOre
+                                if (ore <= 5)   return "https://media0.giphy.com/media/1xkMJIvxeKiDS/giphy.gif"
+                                if (ore <= 15)  return "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExamJodGhxMWttcmJkcDIxYzZhYXoyM3h0dnFpOW55bjg3d3F2MXNrNiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l3fZPYrlEGoSLvq9O/giphy.gif"
+                                if (ore <= 30)  return "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExOWhtdm45YW1kdDB2MThhZmdndDI5N2ZrM2hxZHFoc2NrYjQ0NGpwcyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/R8bcfuGTZONyw/giphy.gif"
+                                return          "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExbjl1ZXBkMHc3ZTdoNzYyb2tyYXdwbjFuaXF2dnd3NzVtc2FtcDd0YyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/7lz6nPd56aHh6/giphy.gif"
+                            }
+                            SequentialAnimation on y {
+                                loops: Animation.Infinite
+                                running: true
+                                NumberAnimation { to: -6; duration: 500; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 0;  duration: 500; easing.type: Easing.InOutSine }
+                            }
+                        }
+
+                        Column {
+                            spacing: 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            Text {
+                                font.pixelSize: 20
+                                font.bold: true
+                                text: paginaStraordinari.totaleOre.toFixed(1) + " ore totali"
+                                color: "#333"
+                            }
+                            Text {
+                                font.pixelSize: 12
+                                color: "#666"
+                                text: {
+                                    let ore = paginaStraordinari.totaleOre
+                                    if (ore <= 0)   return "Nessuno straordinario questo mese"
+                                    if (ore <= 5)   return "Livello: Bradipo (0-5h) - Rame"
+                                    if (ore <= 15)  return "Livello: Cammello (6-15h) - Argento"
+                                    if (ore <= 30)  return "Livello: Cavallo (16-30h) - Oro"
+                                    return "Livello: Ghepardo (30+h) - Diamante"
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- FORM INSERIMENTO ---
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 170
+                    radius: 8
+                    color: "#f9f9f9"
+                    border.color: "#ddd"
+                    border.width: 1
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 6
+
+                        Label { text: "INSERISCI ORE GIORNALIERE"; font.bold: true; font.pixelSize: 12; color: "#2196F3" }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            DateMaskField {
+                                id: campoDataStr
+                                Layout.fillWidth: true
+                                placeholderText: "GG-MM-AAAA"
+                                Component.onCompleted: {
+                                    let d = new Date()
+                                    let gg = d.getDate().toString().padStart(2,'0')
+                                    let mm = (d.getMonth()+1).toString().padStart(2,'0')
+                                    let aa = d.getFullYear()
+                                    text = gg + "-" + mm + "-" + aa
+                                }
+                            }
+
+                            Label { text: "Dalle:" }
+                            TextField {
+                                id: campoOraInizio
+                                Layout.preferredWidth: 75
+                                placeholderText: "HH:MM"
+                                inputMethodHints: Qt.ImhDigitsOnly
+                                maximumLength: 5
+                                onTextChanged: {
+                                    let raw = text.replace(/[^0-9]/g, "")
+                                    let masked = raw.length >= 3 ? raw.slice(0,2) + ":" + raw.slice(2,4) : raw
+                                    if (text !== masked) text = masked
+                                }
+                            }
+
+                            Label { text: "Alle:" }
+                            TextField {
+                                id: campoOraFine
+                                Layout.preferredWidth: 75
+                                placeholderText: "HH:MM"
+                                inputMethodHints: Qt.ImhDigitsOnly
+                                maximumLength: 5
+                                onTextChanged: {
+                                    let raw = text.replace(/[^0-9]/g, "")
+                                    let masked = raw.length >= 3 ? raw.slice(0,2) + ":" + raw.slice(2,4) : raw
+                                    if (text !== masked) text = masked
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            TextField {
+                                id: campoNota
+                                Layout.fillWidth: true
+                                placeholderText: "Nota / motivazione (opzionale)"
+                            }
+
+                            // Preview ore calcolate in tempo reale
+                            Label {
+                                text: {
+                                    let ini = campoOraInizio.text
+                                    let fin = campoOraFine.text
+                                    if (ini.length === 5 && fin.length === 5) {
+                                        let [h1, m1] = ini.split(":").map(Number)
+                                        let [h2, m2] = fin.split(":").map(Number)
+                                        let minTot = (h2 * 60 + m2) - (h1 * 60 + m1)
+                                        if (minTot > 0)
+                                            return "= " + (minTot / 60).toFixed(2) + "h"
+                                    }
+                                    return ""
+                                }
+                                font.bold: true
+                                color: "#2196F3"
+                            }
+
+                            Button {
+                                text: "SALVA"
+                                highlighted: true
+                                onClicked: {
+                                    let parti = campoDataStr.text.split("-")
+                                    if (parti.length !== 3) {
+                                        globalErrorLabel.text = "Inserisci una data valida."
+                                        globalErrorPopup.open()
+                                        return
+                                    }
+                                    if (campoOraInizio.text.length !== 5 || campoOraFine.text.length !== 5) {
+                                        globalErrorLabel.text = "Inserisci orario di inizio e fine nel formato HH:MM."
+                                        globalErrorPopup.open()
+                                        return
+                                    }
+                                    let dataISO = parti[2] + "-" + parti[1] + "-" + parti[0]
+                                    Backend.salvaOreStraordinario(
+                                        idDatabase, dataISO,
+                                        campoOraInizio.text,
+                                        campoOraFine.text,
+                                        campoNota.text
+                                    )
+                                    campoOraInizio.text = ""
+                                    campoOraFine.text = ""
+                                    campoNota.text = ""
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- LISTA ---
+                ListView {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    model: paginaStraordinari.listaStraordinari
+
+                    header: Item { height: 4 }
+
+                    delegate: Rectangle {
+                        width: parent.width
+                        height: modelData.nota !== "" || modelData.oraInizio !== "" ? 68 : 48
+                        color: index % 2 === 0 ? "#fafafa" : "white"
+                        border.color: "#eeeeee"
+                        border.width: 1
+                        radius: 4
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 4
+                            anchors.bottomMargin: 4
+                            spacing: 2
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "📅 " + modelData.dataITA
+                                    font.pixelSize: 14
+                                    font.bold: true
+                                    color: "#333"
+                                    Layout.fillWidth: true
+                                }
+                                Text {
+                                    text: modelData.oraInizio !== "" ? modelData.oraInizio + " → " + modelData.oraFine : ""
+                                    font.pixelSize: 12
+                                    color: "#888"
+                                }
+                                Text {
+                                    text: modelData.ore.toFixed(1) + " h"
+                                    font.pixelSize: 16
+                                    font.bold: true
+                                    color: "#2196F3"
+                                }
+                                ToolButton {
+                                    text: "🗑"
+                                    font.pixelSize: 16
+                                    onClicked: Backend.eliminaStraordinario(modelData.id)
+                                }
+                            }
+
+                            Text {
+                                visible: modelData.nota !== ""
+                                text: "📝 " + modelData.nota
+                                font.pixelSize: 11
+                                color: "#666"
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                        }
+                    }
+                }
+
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "Nessuno straordinario registrato"
+                    visible: paginaStraordinari.listaStraordinari.length === 0
+                    color: "gray"
+                }
+
+            }   // chiude ColumnLayout
+        }   // chiude Page
+    }   // chiude Component
     Popup {
         id: popupConfigBlocco
         anchors.centerIn: parent
@@ -1684,6 +3455,208 @@ Window {
                 }
             }
             Button { text: "ANNULLA"; Layout.fillWidth: true; onClicked: popupConfigBlocco.close() }
+        }
+    }
+
+    // ── POPUP DETTAGLIO BADGE GLOBALE ─────────────────────────────────────
+    Popup {
+        id: popupDettaglioBadge
+        anchors.centerIn: parent
+        width: parent.width * 0.82
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        property string nomeBadge: ""
+        property int livelloBadge: 0
+        property string coloreBadge: "#888888"
+
+        function gifPerBadge(nome) {
+            if (nome === "Mordi e fuggi")          return "https://media2.giphy.com/media/XZmjb11cwJdc7wotpe/giphy.gif"
+            if (nome === "Il Camaleonte")           return "https://media2.giphy.com/media/Le5est4QxTgWynFs7l/giphy.gif"
+            if (nome === "L'Architetto")            return "https://media2.giphy.com/media/A8WtEEVaoj1VVqE0I1/giphy.gif"
+            if (nome === "Il Guerriero")            return "https://media2.giphy.com/media/odPv8LGSL0fTvigh1N/giphy.gif"
+            if (nome === "Tetris")                  return "https://media2.giphy.com/media/MOSebUr4rvZS0/giphy.gif"
+            if (nome === "Febbre del Sabato Sera")  return "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmtwaXluMHlkaWwwbnZqeWh2YTJncWdsMGZ4NmNzeTJyem90cHI3MSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/Id67ff9s4Bc4O7M3fj/giphy.gif"
+            if (nome === "Re dei Ponti")            return "https://media2.giphy.com/media/9cEyhVgNyeM9EYhOEC/giphy.gif"
+            if (nome === "Turista per sempre")      return "https://media2.giphy.com/media/0gn0R3WCprTnIs9eB3/giphy.gif"
+            if (nome === "Supereroe")               return "https://media2.giphy.com/media/kCd6XpV0TOMmmjqvo8/giphy.gif"
+            if (nome === "Il Papa")                 return "https://media2.giphy.com/media/m2lzGNOPx2UgE74kB2/giphy.gif"
+            if (nome === "Giornata da Leoni")       return "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExc3QxZTJ3YTBqejNsNGU1MDMzMWZ1MnNmdzU1Ymh3aDF6Zjh4b2k3dSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l1BUojJe4cno1U0CgL/giphy.gif"
+            if (nome === "Sprint di Fuoco")         return "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2xybDdjMnIwazFpaWd5MmY0anA1cW4yczVhYWl2cWh5NGpleDZnaSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/YA6dmVW0gfIw8/giphy.gif"
+            return "https://media0.giphy.com/media/1xkMJIvxeKiDS/giphy.gif"
+        }
+
+        function commentoPerBadge(nome) {
+            if (nome === "Mordi e fuggi")          return "Sei stato così veloce da non farti nemmeno salutare in Ufficio!\n[hai fatto riposo-lavoro-riposo]"
+            if (nome === "Il Camaleonte")           return "Sei così abile nel mimetizzarti tra i riposi da riuscire ad aggiudicartelo in tempi difficili!\n[hai fatto riposo insieme ad altri 7 o più persone a riposo]"
+            if (nome === "L'Architetto")            return "Abile nel costruire ponti e infrastrutture bi fine settimanali!\n[hai fatto 2 weekend completi di fila]"
+            if (nome === "Il Guerriero")            return "Onore alla patria e al lavoro, esempio da seguire!\n[hai lavorato per 2 weekend completi di fila]"
+            if (nome === "Tetris")                  return "Sei riuscito ad incastrare i riposi per crearti la settimana corta, un vero nerdone!\n[hai creato una sequenza da 2 giornate lavorative massime per ben 2 volte di fila]"
+            if (nome === "Febbre del Sabato Sera")  return "Hai sbagliato lavoro, dovevi fare il dj o il buttafuori!\n[hai riposato per 4 sabati nel mese]"
+            if (nome === "Re dei Ponti")            return "Senza di te sarebbe già crollato il mondo, sei il re in assoluto, grande lavoratore!\n[hai fatto 3 weekend completi anche non di fila]"
+            if (nome === "Turista per sempre")      return "Hai vinto! Per te ogni mese è una vacanza alle Hawaii!\n[hai fatto riposo per ben 10 giorni di fila]"
+            if (nome === "Supereroe")               return "È grazie a te se l'ufficio è ancora attivo, grazie sempre per quello che fai!\n[hai fatto 3 weekend senza riposare il fine settimana, non consecutivi]"
+            if (nome === "Il Papa")                 return "La religione ormai ti ha conquistato, sei il chirichetto dell'Ufficio!\n[hai riposato per 4 domeniche nel mese]"
+            if (nome === "Giornata da Leoni")       return "Che tu voglia o no il lavoro deve essere concluso!\n[hai fatto 4 ore di straordinario in domenica o festivo]"
+            if (nome === "Sprint di Fuoco")         return "Vacci piano... abbiamo tutti mangiato la tua polvere!\n[hai maturato 10 ore di straordinario nella prima settimana completa del mese]"
+            return ""
+        }
+
+        background: Rectangle {
+            radius: 12
+            color: "white"
+            border.color: "#1565C0"
+            border.width: 2
+
+            // Shine animato che scorre dall'alto
+            Rectangle {
+                id: shineBar
+                width: parent.width * 0.4
+                height: parent.height
+                radius: 12
+                opacity: 0.06
+                rotation: 15
+                color: "white"
+                x: -width
+                SequentialAnimation on x {
+                    loops: Animation.Infinite
+                    running: popupProfiloAltro.visible
+                    PauseAnimation { duration: 2000 }
+                    NumberAnimation { to: parent.width + shineBar.width; duration: 900; easing.type: Easing.InOutQuad }
+                    PauseAnimation { duration: 1500 }
+                }
+            }
+
+            // Bordo che pulsa di colore
+            SequentialAnimation on border.color {
+                loops: Animation.Infinite
+                running: popupProfiloAltro.visible
+                ColorAnimation { to: "#1565C0"; duration: 1200 }
+                ColorAnimation { to: "#42A5F5"; duration: 1200 }
+            }
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 16
+            spacing: 10
+
+            // ALONE / TITOLO BADGE
+            Rectangle {
+                Layout.fillWidth: true
+                height: 44
+                radius: 10
+                color: popupDettaglioBadge.coloreBadge
+                border.width: popupDettaglioBadge.livelloBadge === 3 ? 2 : 0
+                border.color: "#00bcd4"
+
+                SequentialAnimation on border.color {
+                    loops: Animation.Infinite
+                    running: popupDettaglioBadge.livelloBadge === 3
+                    ColorAnimation { to: "#00bcd4"; duration: 900 }
+                    ColorAnimation { to: "#e0f7fa"; duration: 900 }
+                }
+
+                SequentialAnimation on opacity {
+                    loops: Animation.Infinite
+                    running: true
+                    NumberAnimation { to: 0.85; duration: 800; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: 1.0;  duration: 800; easing.type: Easing.InOutSine }
+                }
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 2
+                    Text {
+                        text: popupDettaglioBadge.nomeBadge
+                        font.pixelSize: 18
+                        font.bold: true
+                        color: popupDettaglioBadge.livelloBadge === 3 ? "#003344" : "white"
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                    Text {
+                        text: popupDettaglioBadge.livelloBadge === 1 ? "▲ ARGENTO"
+                            : popupDettaglioBadge.livelloBadge === 2 ? "★ ORO"
+                            : "◆ DIAMANTE"
+                        font.pixelSize: 10
+                        font.bold: true
+                        color: popupDettaglioBadge.livelloBadge === 3 ? "#005577" : "white"
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        opacity: 0.9
+                    }
+                }
+            }
+
+            // GIF
+            AnimatedImage {
+                Layout.alignment: Qt.AlignHCenter
+                width: 160
+                height: 160
+                fillMode: Image.PreserveAspectFit
+                playing: popupDettaglioBadge.visible
+                source: popupDettaglioBadge.visible
+                        ? popupDettaglioBadge.gifPerBadge(popupDettaglioBadge.nomeBadge)
+                        : ""
+            }
+
+            // COMMENTO
+            Rectangle {
+                Layout.fillWidth: true
+                radius: 8
+                color: "#f5f8ff"
+                border.color: {
+                    var lv = popupDettaglioBadge.livelloBadge
+                    return lv === 1 ? "#C0C0C0" : lv === 2 ? "#FFD700" : "#00bcd4"
+                }
+                border.width: 1
+                height: commentoCol.implicitHeight + 24
+
+                Column {
+                    id: commentoCol
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 12
+                    spacing: 6
+
+                    Text {
+                        width: parent.width
+                        text: {
+                            var raw = popupDettaglioBadge.commentoPerBadge(popupDettaglioBadge.nomeBadge)
+                            return raw.split("\n")[0]
+                        }
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 13
+                        font.bold: true
+                        color: {
+                            var lv = popupDettaglioBadge.livelloBadge
+                            return lv === 1 ? "#5c5c5c" : lv === 2 ? "#7a5c00" : "#005577"
+                        }
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: {
+                            var raw = popupDettaglioBadge.commentoPerBadge(popupDettaglioBadge.nomeBadge)
+                            var parti = raw.split("\n")
+                            return parti.length > 1 ? parti[1] : ""
+                        }
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 11
+                        font.italic: true
+                        color: "#888"
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                }
+            }
+
+            Button {
+                text: "CHIUDI"
+                Layout.fillWidth: true
+                onClicked: popupDettaglioBadge.close()
+            }
         }
     }
 }
