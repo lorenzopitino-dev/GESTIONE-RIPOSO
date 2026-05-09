@@ -3534,7 +3534,7 @@ Window {
                 x: -width
                 SequentialAnimation on x {
                     loops: Animation.Infinite
-                    running: popupProfiloAltro.visible
+                    running: popupDettaglioBadge.visible
                     PauseAnimation { duration: 2000 }
                     NumberAnimation { to: parent.width + shineBar.width; duration: 900; easing.type: Easing.InOutQuad }
                     PauseAnimation { duration: 1500 }
@@ -3544,7 +3544,7 @@ Window {
             // Bordo che pulsa di colore
             SequentialAnimation on border.color {
                 loops: Animation.Infinite
-                running: popupProfiloAltro.visible
+                running: popupDettaglioBadge.visible
                 ColorAnimation { to: "#1565C0"; duration: 1200 }
                 ColorAnimation { to: "#42A5F5"; duration: 1200 }
             }
