@@ -3432,7 +3432,7 @@ Window {
     }   // chiude Component
     Popup {
         id: popupConfigBlocco
-        anchors.centerIn: parent
+        anchors.centerIn: Overlay.overlay
         width: parent.width * 0.9
         modal: true
         focus: true
@@ -3473,7 +3473,7 @@ Window {
     // ── POPUP DETTAGLIO BADGE GLOBALE ─────────────────────────────────────
     Popup {
         id: popupDettaglioBadge
-        anchors.centerIn: parent
+        anchors.centerIn: Overlay.overlay
         width: parent.width * 0.82
         height: Math.min(parent.height * 0.85, 520)
         modal: true
