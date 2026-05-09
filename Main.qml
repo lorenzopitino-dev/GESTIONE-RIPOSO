@@ -3474,8 +3474,8 @@ Window {
     Popup {
         id: popupDettaglioBadge
         anchors.centerIn: Overlay.overlay
-        width: window.width * 0.82
-        height: Math.min(window.height * 0.85, 520)
+        width: Math.min(window.width * 0.85, 500)
+        height: Math.min(window.height * 0.75, 520)
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -3536,7 +3536,7 @@ Window {
                     loops: Animation.Infinite
                     running: popupDettaglioBadge.visible
                     PauseAnimation { duration: 2000 }
-                    NumberAnimation { to: parent.width + shineBar.width; duration: 900; easing.type: Easing.InOutQuad }
+                    NumberAnimation { to: popupDettaglioBadge.width + shineBar.width; duration: 900; easing.type: Easing.InOutQuad }
                     PauseAnimation { duration: 1500 }
                 }
             }
@@ -3583,7 +3583,7 @@ Window {
                     spacing: 2
                     Text {
                         text: popupDettaglioBadge.nomeBadge
-                        font.pixelSize: 18
+                        font.pixelSize: Math.min(18, window.width * 0.045)
                         font.bold: true
                         color: popupDettaglioBadge.livelloBadge === 3 ? "#003344" : "white"
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -3604,9 +3604,12 @@ Window {
             // GIF
             AnimatedImage {
                 Layout.alignment: Qt.AlignHCenter
-                width: 160
-                height: 160
+                Layout.maximumWidth: Math.min(160, window.width * 0.25)
+                Layout.maximumHeight: Math.min(160, window.width * 0.25)
+                width: Layout.maximumWidth
+                height: Layout.maximumHeight
                 fillMode: Image.PreserveAspectFit
+                clip: true
                 playing: popupDettaglioBadge.visible
                 source: popupDettaglioBadge.visible
                         ? popupDettaglioBadge.gifPerBadge(popupDettaglioBadge.nomeBadge)
