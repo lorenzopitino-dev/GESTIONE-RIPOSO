@@ -1014,11 +1014,13 @@ public:
     Q_INVOKABLE void salvaBadgeMese(QString idUtente, int anno, int mese, QVariantList badges) {
         for (const QVariant &bv : badges) {
             QVariantMap b = bv.toMap();
+            QString nomeBadge = b["nome"].toString();
+
             QJsonObject dati;
             dati["id_utente"]   = idUtente;
             dati["anno"]        = anno;
             dati["mese"]        = mese;
-            dati["nome_badge"]  = b["nome"].toString();
+            dati["nome_badge"]  = nomeBadge;
             dati["livello"]     = b["livello"].toInt();
             dati["colore"]      = b["colore"].toString();
             dati["occorrenze"]  = b.contains("occorrenze") ? b["occorrenze"].toInt() : 1;
@@ -1027,14 +1029,15 @@ public:
                     "?on_conflict=id_utente,anno,mese,nome_badge");
             QNetworkRequest request(url);
             impostaHeader(request);
-            request.setRawHeader("Prefer", "resolution=merge-duplicates,return=minimal");
+
+            request.setRawHeader("Prefer", "resolution=ignore-duplicates,return=minimal");
 
             QNetworkReply* reply = manager->post(request, QJsonDocument(dati).toJson());
-            connect(reply, &QNetworkReply::finished, [reply]() {
+            connect(reply, &QNetworkReply::finished, [reply, nomeBadge]() {
                 if (reply->error() != QNetworkReply::NoError)
-                    qDebug() << "ERRORE salvaBadgeMese:" << reply->errorString() << reply->readAll();
+                    qDebug() << "ERRORE salvaBadgeMese:" << nomeBadge << reply->errorString() << reply->readAll();
                 else
-                    qDebug() << "salvaBadgeMese OK:" << reply->readAll();
+                    qDebug() << "salvaBadgeMese OK:" << nomeBadge << reply->readAll();
                 reply->deleteLater();
             });
         }

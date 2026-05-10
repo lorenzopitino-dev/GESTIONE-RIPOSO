@@ -417,7 +417,7 @@ Window {
 
                 var candidati = []
 
-                // CAMALEONTE — usa tuttiMese (include date future del mese)
+                // CAMALEONTE — giorni in cui erano presenti 7+ colleghi
                 var conteggioCAMALEONTE = 0
                 for (var k = 0; k < tuttiInsieme.length; k++) {
                     if (!isLicenzaParziale(tuttiInsieme[k]) &&
@@ -428,73 +428,122 @@ Window {
                 if (conteggioCAMALEONTE > 0)
                     candidati.push({ nome: "Il Camaleonte", livello: 1, colore: "#C0C0C0", occorrenze: conteggioCAMALEONTE })
 
-                if (checkMordiFuggi(tuttiInsieme))
-                    candidati.push({ nome: "Mordi e fuggi", livello: 1, colore: "#C0C0C0" })
+                // MORDI E FUGGI — quante volte si verifica il pattern R-X-R nel mese
+                var conteggioMORDI = 0
+                var dateSetMF = {}
+                tuttiInsieme.forEach(r => { if (r.data_fruizione && r.data_fruizione !== "") dateSetMF[r.data_fruizione] = true })
+                var dateMF = Object.keys(dateSetMF).sort()
+                for (var mf = 0; mf < dateMF.length; mf++) {
+                    var d1mf = toDate(dateMF[mf])
+                    var d2mf = new Date(d1mf); d2mf.setDate(d1mf.getDate() + 1)
+                    var d3mf = new Date(d1mf); d3mf.setDate(d1mf.getDate() + 2)
+                    if (!dateSetMF[toISO(d2mf)] && dateSetMF[toISO(d3mf)]) conteggioMORDI++
+                }
+                if (conteggioMORDI > 0)
+                    candidati.push({ nome: "Mordi e fuggi", livello: 1, colore: "#C0C0C0", occorrenze: conteggioMORDI })
 
-                if (contaWeekendPieni(tuttiInsieme) >= 2)
-                    candidati.push({ nome: "L'Architetto", livello: 2, colore: "#FFD700"})
+                // L'ARCHITETTO — quanti weekend consecutivi pieni (max streak)
+                var wkPieni = contaWeekendPieni(tuttiInsieme)
+                if (wkPieni >= 2)
+                    candidati.push({ nome: "L'Architetto", livello: 2, colore: "#FFD700", occorrenze: wkPieni })
 
-                if (contaWeekendGuerriero(tuttiInsieme) >= 2)
-                    candidati.push({ nome: "Il Guerriero", livello: 2, colore: "#FFD700"})
+                // IL GUERRIERO — quanti weekend consecutivi senza riposo (max streak)
+                var wkGuerr = contaWeekendGuerriero(tuttiInsieme)
+                if (wkGuerr >= 2)
+                    candidati.push({ nome: "Il Guerriero", livello: 2, colore: "#FFD700", occorrenze: wkGuerr })
 
-                if (checkTetris(tuttiInsieme))
-                    candidati.push({ nome: "Tetris", livello: 2, colore: "#FFD700"})
+                // TETRIS — quante volte si incastra il pattern R-≤2gg-R
+                var conteggioTETRIS = 0
+                var dateSetT = {}
+                tuttiInsieme.forEach(r => { if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r)) dateSetT[r.data_fruizione] = true })
+                var dT = new Date(_anno, _mese - 1, 1)
+                var giorniT = []
+                while (dT.getMonth() === _mese - 1 && dT <= new Date()) { giorniT.push(dateSetT[toISO(dT)] === true); dT.setDate(dT.getDate() + 1) }
+                var tetrisConsec = 0, iT = 0
+                while (iT < giorniT.length) {
+                    if (giorniT[iT]) { iT++; continue }
+                    if (iT === 0 || !giorniT[iT - 1]) { while (iT < giorniT.length && !giorniT[iT]) iT++; tetrisConsec = 0; continue }
+                    var startT = iT
+                    while (iT < giorniT.length && !giorniT[iT]) iT++
+                    var lunghezzaT = iT - startT
+                    var seguitoDaRiposoT = (iT < giorniT.length && giorniT[iT])
+                    if (lunghezzaT <= 2 && seguitoDaRiposoT) { tetrisConsec++; if (tetrisConsec >= 2) conteggioTETRIS++ }
+                    else tetrisConsec = 0
+                }
+                if (conteggioTETRIS > 0)
+                    candidati.push({ nome: "Tetris", livello: 2, colore: "#FFD700", occorrenze: conteggioTETRIS })
 
-                if (tuttiSabatiRiposo(tuttiInsieme))
-                    candidati.push({ nome: "Febbre del Sabato Sera", livello: 2, colore: "#FFD700"})
+                // FEBBRE DEL SABATO SERA — quanti sabati a riposo nel mese
+                var sabatiRiposo = 0
+                var dateSetFS = {}
+                tuttiInsieme.forEach(r => { if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r)) dateSetFS[r.data_fruizione] = true })
+                var dFS = new Date(_anno, _mese - 1, 1)
+                var tuttiSabatiOk = true
+                while (dFS.getMonth() === _mese - 1 && dFS <= new Date()) {
+                    if (dFS.getDay() === 6) { if (dateSetFS[toISO(dFS)]) sabatiRiposo++; else tuttiSabatiOk = false }
+                    dFS.setDate(dFS.getDate() + 1)
+                }
+                if (sabatiRiposo >= 4 && tuttiSabatiOk)
+                    candidati.push({ nome: "Febbre del Sabato Sera", livello: 2, colore: "#FFD700", occorrenze: sabatiRiposo })
 
-                if (contaWeekendCompleti(tuttiInsieme) >= 3)
-                    candidati.push({ nome: "Re dei Ponti", livello: 3, colore: "#b9f2ff"})
+                // RE DEI PONTI — quanti weekend completi nel mese
+                var wkCompleti = contaWeekendCompleti(tuttiInsieme)
+                if (wkCompleti >= 3)
+                    candidati.push({ nome: "Re dei Ponti", livello: 3, colore: "#b9f2ff", occorrenze: wkCompleti })
 
-                if (contaGiorni10Fila(tuttiInsieme) >= 10)
-                    candidati.push({ nome: "Turista per sempre", livello: 3, colore: "#b9f2ff"})
+                // TURISTA PER SEMPRE — quanti giorni nella sequenza più lunga
+                var maxSeqTurista = contaGiorni10Fila(tuttiInsieme)
+                if (maxSeqTurista >= 10)
+                    candidati.push({ nome: "Turista per sempre", livello: 3, colore: "#b9f2ff", occorrenze: maxSeqTurista })
 
-                if (contaWeekendSenzaRiposo(tuttiInsieme) >= 3)
-                    candidati.push({ nome: "Supereroe", livello: 3, colore: "#b9f2ff"})
+                // SUPEREROE — quanti weekend senza riposo nel mese
+                var wkSenza = contaWeekendSenzaRiposo(tuttiInsieme)
+                if (wkSenza >= 3)
+                    candidati.push({ nome: "Supereroe", livello: 3, colore: "#b9f2ff", occorrenze: wkSenza })
 
-                if (tutteDomeniche(tuttiInsieme))
-                    candidati.push({ nome: "Il Papa", livello: 3, colore: "#b9f2ff" })
+                // IL PAPA — quante domeniche a riposo nel mese
+                var domenicheRiposo = 0
+                var dateSetPapa = {}
+                tuttiInsieme.forEach(r => { if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r)) dateSetPapa[r.data_fruizione] = true })
+                var dPapa = new Date(_anno, _mese - 1, 1)
+                var tutteDomenichePapa = true
+                while (dPapa.getMonth() === _mese - 1 && dPapa <= new Date()) {
+                    if (dPapa.getDay() === 0) { if (dateSetPapa[toISO(dPapa)]) domenicheRiposo++; else tutteDomenichePapa = false }
+                    dPapa.setDate(dPapa.getDate() + 1)
+                }
+                if (domenicheRiposo >= 4 && tutteDomenichePapa)
+                    candidati.push({ nome: "Il Papa", livello: 3, colore: "#b9f2ff", occorrenze: domenicheRiposo })
 
-                var festiviSet = {}
-                tuttiInsieme.forEach(r => {
-                    if (r.tipo && r.tipo.toUpperCase().includes("FESTIV"))
-                        festiviSet[r.data_fruizione] = true
-                })
-                var giornataLeoni = false
+                // GIORNATA DA LEONI — quante giornate domenica/festivo con ≥4h straordinari
+                var conteggioLEONI = 0
+                var festiviSetL = {}
+                tuttiInsieme.forEach(r => { if (r.tipo && r.tipo.toUpperCase().includes("FESTIV")) festiviSetL[r.data_fruizione] = true })
                 if (dettaglioStr) {
                     for (var s = 0; s < dettaglioStr.length; s++) {
                         var dISO = dettaglioStr[s].dataISO
                         var ore  = dettaglioStr[s].ore
-                        var dataStr = toDate(dISO)
-                        var isDomenica = (dataStr.getDay() === 0)
-                        var isFestivo  = festiviSet[dISO] === true
-                        if ((isDomenica || isFestivo) && ore >= 4) { giornataLeoni = true; break }
+                        var dataStrL = toDate(dISO)
+                        if ((dataStrL.getDay() === 0 || festiviSetL[dISO] === true) && ore >= 4) conteggioLEONI++
                     }
                 }
-                if (giornataLeoni)
-                    candidati.push({ nome: "Giornata da Leoni", livello: 2, colore: "#FFD700"})
+                if (conteggioLEONI > 0)
+                    candidati.push({ nome: "Giornata da Leoni", livello: 2, colore: "#FFD700", occorrenze: conteggioLEONI })
 
-                var sprintFuoco = false
+                // SPRINT DI FUOCO — ore totali nella prima settimana completa del mese
+                var oreSprintFuoco = 0
                 if (dettaglioStr) {
-                    // Trova il primo lunedì della prima settimana completa del mese
                     var primoDelMese = new Date(_anno, _mese - 1, 1)
                     var primoLunedi = new Date(primoDelMese)
-                    // Se il 1° non è lunedì, vai avanti fino al primo lunedì
-                    while (primoLunedi.getDay() !== 1)
-                        primoLunedi.setDate(primoLunedi.getDate() + 1)
+                    while (primoLunedi.getDay() !== 1) primoLunedi.setDate(primoLunedi.getDate() + 1)
                     var ultimoGiornoSettimana = new Date(primoLunedi)
-                    ultimoGiornoSettimana.setDate(primoLunedi.getDate() + 6) // domenica della stessa settimana
-
-                    var oreSettimana = 0
+                    ultimoGiornoSettimana.setDate(primoLunedi.getDate() + 6)
                     for (var w = 0; w < dettaglioStr.length; w++) {
                         var dW = toDate(dettaglioStr[w].dataISO)
-                        if (dW >= primoLunedi && dW <= ultimoGiornoSettimana)
-                            oreSettimana += dettaglioStr[w].ore
+                        if (dW >= primoLunedi && dW <= ultimoGiornoSettimana) oreSprintFuoco += dettaglioStr[w].ore
                     }
-                    if (oreSettimana >= 10) sprintFuoco = true
                 }
-                if (sprintFuoco)
-                    candidati.push({ nome: "Sprint di Fuoco", livello: 3, colore: "#b9f2ff"})
+                if (oreSprintFuoco >= 10)
+                    candidati.push({ nome: "Sprint di Fuoco", livello: 3, colore: "#b9f2ff", occorrenze: Math.round(oreSprintFuoco * 10) / 10 })
 
                 if (candidati.length === 0)
                     return { best: { nome: "", livello: 0, colore: "#888888"}, tutti: [] }
