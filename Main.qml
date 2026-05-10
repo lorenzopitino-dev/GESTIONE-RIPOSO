@@ -1039,10 +1039,9 @@ Window {
             }
             Popup {
                 id: popupProfilo
-                x: 6
-                y: menuHeader.height + 8
-                width: parent.width - 12
-                height: parent.height - menuHeader.height - 16
+                anchors.centerIn: Overlay.overlay
+                width: Math.min(parent.width * 0.92, 500)
+                height: Math.min(parent.height * 0.88, 700)
                 modal: true
                 focus: true
                 closePolicy: Popup.CloseOnEscape
@@ -1389,7 +1388,7 @@ Window {
                         // RIPOSI PER TIPO (filtrati)
                         ListView {
                             Layout.fillWidth: true
-                            Layout.fillHeight: true
+                            Layout.preferredHeight: Math.max(popupProfilo.riposiAnnuali.length * 38 + 10, 60)
                             clip: true
                             model: {
                                 var mappa = {}
@@ -2114,9 +2113,9 @@ Window {
             }
             Popup {
                 id: popupProfiloAltro
-                anchors.centerIn: parent
-                width: parent.width - 12
-                height: parent.height * 0.92
+                anchors.centerIn: Overlay.overlay
+                width: Math.min(window.width * 0.92, 500)
+                height: Math.min(window.height * 0.88, 700)
                 modal: true
                 focus: true
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
