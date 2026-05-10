@@ -1021,6 +1021,7 @@ public:
             dati["nome_badge"]  = b["nome"].toString();
             dati["livello"]     = b["livello"].toInt();
             dati["colore"]      = b["colore"].toString();
+            dati["occorrenze"]  = b.contains("occorrenze") ? b["occorrenze"].toInt() : 1;
 
             QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/badge_storico"
                     "?on_conflict=id_utente,anno,mese,nome_badge");
@@ -1044,7 +1045,7 @@ public:
         QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/badge_storico"
                 "?id_utente=eq." + idUtente +
                 "&anno=eq." + QString::number(anno) +
-                "&select=mese,nome_badge,livello,colore&order=mese.asc");
+                "&select=mese,nome_badge,livello,colore,occorrenze&order=mese.asc");
         QNetworkRequest request(url);
         impostaHeader(request);
         QNetworkReply* reply = manager->get(request);
@@ -1061,6 +1062,7 @@ public:
                     item["nome_badge"] = obj["nome_badge"].toString();
                     item["livello"]    = obj["livello"].toInt();
                     item["colore"]     = obj["colore"].toString();
+                    item["occorrenze"] = obj["occorrenze"].toInt();
                     lista.append(item);
                 }
                 emit storicoBadgeRicevuto(lista);
@@ -1146,7 +1148,7 @@ public:
         QUrl urlB("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/badge_storico"
                 "?id_utente=eq." + idUtente +
                 "&anno=eq." + QString::number(anno) +
-                "&select=mese,nome_badge,livello,colore&order=mese.asc");
+                "&select=mese,nome_badge,livello,colore,occorrenze&order=mese.asc");
         QNetworkRequest reqB(urlB);
         impostaHeader(reqB);
         QNetworkReply* replyB = manager->get(reqB);
@@ -1161,6 +1163,7 @@ public:
                     item["nome_badge"] = obj["nome_badge"].toString();
                     item["livello"]    = obj["livello"].toInt();
                     item["colore"]     = obj["colore"].toString();
+                    item["occorrenze"] = obj["occorrenze"].toInt();
                     lista.append(item);
                 }
                 emit profiloAltroStoricoBadge(lista);

@@ -152,45 +152,33 @@ Window {
             function tuttiSabatiRiposo(lista) {
                 var dateSet = {}
                 lista.forEach(r => {
-                    if (r.data_fruizione && r.data_fruizione !== "")
+                    if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r))
                         dateSet[r.data_fruizione] = true
                 })
-
                 var oggi = new Date()
-                var meseCorrente = oggi.getMonth() + 1
-                var annoCorrente = oggi.getFullYear()
-
-                var d = new Date(annoCorrente, meseCorrente - 1, 1)
-                while (d.getMonth() === meseCorrente - 1) {
-                    if (d.getDay() === 6) {
-                        var iso = toISO(d)
-                        if (!dateSet[iso]) return false
-                    }
+                var d = new Date(oggi.getFullYear(), oggi.getMonth(), 1)
+                var sabatiRiposo = 0
+                while (d.getMonth() === oggi.getMonth() && d <= oggi) {
+                    if (d.getDay() === 6 && dateSet[toISO(d)]) sabatiRiposo++
                     d.setDate(d.getDate() + 1)
                 }
-                return true
+                return sabatiRiposo >= 4
             }
 
             function tutteDomeniche(lista) {
                 var dateSet = {}
                 lista.forEach(r => {
-                    if (r.data_fruizione && r.data_fruizione !== "")
+                    if (r.data_fruizione && r.data_fruizione !== "" && !isLicenzaParziale(r))
                         dateSet[r.data_fruizione] = true
                 })
-
                 var oggi = new Date()
-                var meseCorrente = oggi.getMonth() + 1
-                var annoCorrente = oggi.getFullYear()
-
-                var d = new Date(annoCorrente, meseCorrente - 1, 1)
-                while (d.getMonth() === meseCorrente - 1) {
-                    if (d.getDay() === 0) {
-                        var iso = toISO(d)
-                        if (!dateSet[iso]) return false
-                    }
+                var d = new Date(oggi.getFullYear(), oggi.getMonth(), 1)
+                var domenicheRiposo = 0
+                while (d.getMonth() === oggi.getMonth() && d <= oggi) {
+                    if (d.getDay() === 0 && dateSet[toISO(d)]) domenicheRiposo++
                     d.setDate(d.getDate() + 1)
                 }
-                return true
+                return domenicheRiposo >= 4
             }
 
             function calcolaBadge(riposi, mappaColleghi, oreStr, dettaglioStr) {
@@ -430,16 +418,15 @@ Window {
                 var candidati = []
 
                 // CAMALEONTE — usa tuttiMese (include date future del mese)
-                var hasCamaleonte = false
-                for (var k = 0; k < tuttiMese.length; k++) {
-                    if (!isLicenzaParziale(tuttiMese[k]) &&
-                        (mappaColleghi[tuttiMese[k].data_fruizione] || 0) >= 7) {
-                        hasCamaleonte = true
-                        break
+                var conteggioCAMALEONTE = 0
+                for (var k = 0; k < tuttiInsieme.length; k++) {
+                    if (!isLicenzaParziale(tuttiInsieme[k]) &&
+                        (mappaColleghi[tuttiInsieme[k].data_fruizione] || 0) >= 7) {
+                        conteggioCAMALEONTE++
                     }
                 }
-                if (hasCamaleonte)
-                    candidati.push({ nome: "Il Camaleonte", livello: 1, colore: "#C0C0C0" })
+                if (conteggioCAMALEONTE > 0)
+                    candidati.push({ nome: "Il Camaleonte", livello: 1, colore: "#C0C0C0", occorrenze: conteggioCAMALEONTE })
 
                 if (checkMordiFuggi(tuttiInsieme))
                     candidati.push({ nome: "Mordi e fuggi", livello: 1, colore: "#C0C0C0" })
@@ -808,6 +795,7 @@ Window {
                 }
                 function onDettaglioStraordinariRicevuti(lista) {
                     paginaMenu.listaDettaglioStr = lista
+                    if (paginaMenu._attesaColleghi !== 0) return
                     var risultato = paginaMenu.calcolaBadge(
                         paginaMenu.listaRiposiRaw,
                         paginaMenu.mappaColleghi,
@@ -1062,7 +1050,7 @@ Window {
                         var b = sorgente[i]
                         if (!mappa[b.nome_badge])
                             mappa[b.nome_badge] = { nome: b.nome_badge, livello: b.livello, colore: b.colore, count: 0 }
-                        mappa[b.nome_badge].count++
+                        mappa[b.nome_badge].count += (b.occorrenze || 1)
                     }
                     badgeAggregati = Object.values(mappa)
                 }
@@ -1886,7 +1874,8 @@ Window {
 
                                             color: {
                                                 let trovato = cellaDelegata.helper.cerca();
-                                                if (!trovato || !trovato.tipo) return trovato.colore;
+                                                if (!trovato) return "#4CAF50";
+                                                if (!trovato.tipo) return trovato.colore;
                                                 let t = trovato.tipo.toUpperCase()
                                                 if (t.indexOf("SETTIMANALE") !== -1) return "#F44336"; // Rosso
                                                 if (t.indexOf("FESTIVO") !== -1)     return "#FF9800"; // Arancio
@@ -1916,12 +1905,12 @@ Window {
                         Label {
                             text: "Azioni Rapide per Admin"
                             font.bold: true
-                            anchors.horizontalCenter: parent
+                            anchors.horizontalCenter: parent.horizontalCenter
                         }
 
                        Row {
                             spacing: 20
-                            anchors.horizontalCenter: parent
+                            anchors.horizontalCenter: parent.horizontalCenter
 
                             Button {
                                 text: "Approva Richieste Riposi"
@@ -2146,7 +2135,7 @@ Window {
                         var bj = storicoBadge[j]
                         if (!mappa[bj.nome_badge])
                             mappa[bj.nome_badge] = { nome: bj.nome_badge, livello: bj.livello, colore: bj.colore, count: 0 }
-                        mappa[bj.nome_badge].count++
+                        mappa[bj.nome_badge].count += (bj.occorrenze || 1)
                     }
                     badgeAggregati = Object.values(mappa)
                 }
