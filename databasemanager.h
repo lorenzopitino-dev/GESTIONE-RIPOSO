@@ -13,6 +13,7 @@
 #include <QDebug>
 #include <QVariant>
 #include <emscripten.h>
+#include <emscripten/val.h>
 
 class DatabaseManager : public QObject {
     Q_OBJECT
@@ -28,6 +29,7 @@ public:
         qDebug() << "[DEBUG LOGIN] URL richiesto:" << url.toString();
         QNetworkRequest request(url);
         impostaHeader(request);
+        request.setTransferTimeout(12000);
 
         QNetworkReply* reply = manager->get(request);
 
@@ -468,7 +470,9 @@ public:
                                     r["id_reale"] = idU;
                                     r["id_riposo"] = rObj["id_riposo"].toInt();
                                     r["stato"] = rObj["stato"].toString();
+                                    r["codice_a"] = rObj["a"].toString();
                                     r["d"] = QDate::fromString(rObj["data_fruizione"].toString(), "yyyy-MM-dd").day();
+                                    r["dataISO"] = rObj["data_fruizione"].toString();
                                     r["tipo"] = rObj["tipo_riposo"].toString();
                                     r["maturato"] = QDate::fromString(rObj["giorno_di_riposo"].toString(), "yyyy-MM-dd").toString("dd-MM-yyyy");
 
@@ -510,15 +514,16 @@ public:
         dati["data_fruizione"] = dataISO;
         dati["tipo_riposo"] = "LICENZA";
         dati["a"] = codiceLicenza.toUpper().trimmed();
-        dati["stato"] = "VALIDATO";      // Non può essere null
+        dati["stato"] = "PENDENTE";
         dati["fruizione"] = "FRUITO";
+        dati["giorno_di_riposo"] = QJsonValue();
         qDebug() << "INVIO LICENZA - Data:" << dataISO << "Codice A:" << codiceLicenza;
         QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/riposi?on_conflict=id_utente,data_fruizione");
         QNetworkRequest request(url);
         request.setRawHeader("apikey", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRiZ2pheG91a3pjaW10ZmticXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NjMzNjIsImV4cCI6MjA5MjMzOTM2Mn0.n2WCdp7SZ-VBg_8j1IJUJH7pGbqecFkOdar727qwQJ0");
         request.setRawHeader("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRiZ2pheG91a3pjaW10ZmticXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NjMzNjIsImV4cCI6MjA5MjMzOTM2Mn0.n2WCdp7SZ-VBg_8j1IJUJH7pGbqecFkOdar727qwQJ0");
         request.setRawHeader("Content-Type", "application/json");
-        request.setRawHeader("Prefer", "resolution=merge-duplicates");
+        request.setRawHeader("Prefer", "resolution=merge-duplicates,return=representation");
         QJsonDocument doc(dati);
         QNetworkReply *reply = manager->post(request, doc.toJson());
         connect(reply, &QNetworkReply::finished, [this, reply, idUtenteLoggato, dataISO, codiceLicenza]() {
@@ -564,7 +569,7 @@ public:
         QString isoFine = m_fineBlocco.toString("yyyy-MM-dd");
 
         // Query con Join per avere nome e cognome dell'utente
-        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/riposi?select=*,utenti(nome,cognome)&stato=eq.RICHIESTO&data_fruizione=gte." + isoInizio + "&data_fruizione=lte." + isoFine);
+         QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/riposi?select=*,utenti(nome,cognome)&or=(stato.eq.RICHIESTO,stato.eq.PENDENTE)&data_fruizione=gte." + isoInizio + "&data_fruizione=lte." + isoFine);
         QNetworkRequest request(url);
         impostaHeader(request);
 
@@ -573,15 +578,24 @@ public:
             if (reply->error() == QNetworkReply::NoError) {
                 QJsonArray array = QJsonDocument::fromJson(reply->readAll()).array();
                 QVariantList lista;
+                static const QStringList CODICI_ESCLUSI_LISTA = {"LS", "CP", "104", "CIT"};
                 for (const QJsonValue & v : array) {
                     QJsonObject obj = v.toObject();
+                    QString codA = obj["a"].toString().toUpper();
+
+                    // Salta LO%, LS, CP, 104, CIT
+                    if (CODICI_ESCLUSI_LISTA.contains(codA) || codA.startsWith("LO"))
+                        continue;
+
                     QVariantMap item;
-                    item["id_riposo"] = obj["id_riposo"].toInt(); // Assumendo ci sia un ID univoco
+                    item["id_riposo"] = obj["id_riposo"].toInt();
                     item["id_utente"] = obj["id_utente"].toInt();
                     item["nome_utente"] = obj["utenti"].toObject()["cognome"].toString() + " " + obj["utenti"].toObject()["nome"].toString();
                     item["data_mat"] = QDate::fromString(obj["giorno_di_riposo"].toString(), "yyyy-MM-dd").toString("dd-MM-yyyy");
                     item["data_fru"] = QDate::fromString(obj["data_fruizione"].toString(), "yyyy-MM-dd").toString("dd-MM-yyyy");
                     item["tipo"] = obj["tipo_riposo"].toString();
+                    item["stato"] = obj["stato"].toString();
+                    item["codice_a"] = obj["a"].toString();
                     lista.append(item);
                 }
                 emit richiesteBloccoRicevute(lista);
@@ -597,37 +611,107 @@ public:
             return;
         }
         QStringList listaId;
-        for (const QVariant &v : idRiposiRaw) {
-            int idCorrente = v.toInt();                       
-            listaId << QString::number(idCorrente);
-            QString messaggio = valida ? "Il tuo riposo è stato APPROVATO" : "Il tuo riposo è stato RIFIUTATO";
-            qDebug() << "[NOTIFICA] id_riposo_rif:" << idCorrente << "dest:" << idDestinatario;
-        }
+        for (const QVariant &v : idRiposiRaw)
+            listaId << QString::number(v.toInt());
 
         QString stringaId = listaId.join(",");
-        QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/riposi?id_riposo=in.(" + stringaId + ")");
-        QNetworkRequest request(url);
-        impostaHeader(request);
 
-        QJsonObject dati;
-        if (valida) {
-            dati["stato"] = "VALIDATO";
-            dati["fruizione"] = "FRUITO";
-            dati["validata_da"] = nomeAdmin;
-        } else {
-            dati["stato"] = "ACQUISITO";
-            dati["fruizione"] = "DISPONIBILE";
-            dati["validata_da"] = nomeAdmin;
-            dati["data_fruizione"] = QJsonValue::Null;
-        }
-        QNetworkReply* reply = manager->sendCustomRequest(request, "PATCH", QJsonDocument(dati).toJson());
-        connect(reply, &QNetworkReply::finished, [this, reply]() {
-            if (reply->error() == QNetworkReply::NoError) {
-                emit operazioneCompletata("Elaborazione completata");
-            } else {
-                qDebug() << "Errore Supabase:" << reply->errorString();
+        // Prima recuperiamo i record per sapere quali sono licenze parziali
+        QUrl urlQuery("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/riposi?id_riposo=in.(" + stringaId + ")&select=id_riposo,tipo_riposo,a");
+        QNetworkRequest reqQuery(urlQuery);
+        impostaHeader(reqQuery);
+
+        QNetworkReply* replyQuery = manager->get(reqQuery);
+        connect(replyQuery, &QNetworkReply::finished, [this, replyQuery, valida, nomeAdmin, idDestinatario, stringaId]() {
+            if (replyQuery->error() != QNetworkReply::NoError) {
+                qDebug() << "Errore query pre-validazione:" << replyQuery->errorString();
+                replyQuery->deleteLater();
+                return;
             }
-            reply->deleteLater();
+
+            QJsonArray records = QJsonDocument::fromJson(replyQuery->readAll()).array();
+            replyQuery->deleteLater();
+
+            // Suddividiamo gli ID in due gruppi
+            QStringList idLicenze;    // MAT, SER, POM, LICENZA → record da eliminare se rifiutati
+            QStringList idRiposi;     // tutto il resto → PATCH normale
+
+            static const QStringList TIPI_LICENZA_PARZIALE = {"MAT", "SER", "POM", "LICENZA"};
+            static const QStringList CODICI_ESCLUSI = {"LS", "CP", "104", "CIT"};
+            for (const QJsonValue &v : records) {
+                QJsonObject obj = v.toObject();
+                QString tipo = obj["tipo_riposo"].toString().toUpper();
+                QString codA = obj["a"].toString().toUpper();
+                QString id   = QString::number(obj["id_riposo"].toInt());
+                bool isCodiceEscluso = CODICI_ESCLUSI.contains(codA)
+                                    || codA.startsWith("LO");
+                bool isLicenza = !isCodiceEscluso &&
+                                 ((tipo == "LICENZA") || (codA == "MAT" || codA == "SER" || codA == "POM"));
+                if (isCodiceEscluso)   { /* ignorato */ }
+                else if (isLicenza)    idLicenze << id;
+                else                   idRiposi  << id;
+            }
+
+            // --- PATCH per i riposi normali ---
+            if (!idRiposi.isEmpty()) {
+                QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/riposi?id_riposo=in.(" + idRiposi.join(",") + ")");
+                QNetworkRequest request(url);
+                impostaHeader(request);
+                QJsonObject dati;
+                if (valida) {
+                    dati["stato"] = "VALIDATO";
+                    dati["fruizione"] = "FRUITO";
+                    dati["validata_da"] = nomeAdmin;
+                } else {
+                    dati["stato"] = "ACQUISITO";
+                    dati["fruizione"] = "DISPONIBILE";
+                    dati["validata_da"] = nomeAdmin;
+                    dati["data_fruizione"] = QJsonValue::Null;
+                }
+                QNetworkReply* r = manager->sendCustomRequest(request, "PATCH", QJsonDocument(dati).toJson());
+                connect(r, &QNetworkReply::finished, [this, r]() {
+                    if (r->error() != QNetworkReply::NoError)
+                        qDebug() << "Errore PATCH riposi:" << r->errorString();
+                    r->deleteLater();
+                });
+            }
+
+            if (!idLicenze.isEmpty()) {
+                QUrl url("https://tbgjaxoukzcimtfkbqua.supabase.co/rest/v1/riposi?id_riposo=in.(" + idLicenze.join(",") + ")");
+                QNetworkRequest request(url);
+                QByteArray apikey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRiZ2pheG91a3pjaW10ZmticXVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NjMzNjIsImV4cCI6MjA5MjMzOTM2Mn0.n2WCdp7SZ-VBg_8j1IJUJH7pGbqecFkOdar727qwQJ0";
+                request.setRawHeader("apikey", apikey);
+                request.setRawHeader("Authorization", "Bearer " + apikey);
+                request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+                request.setRawHeader("Prefer", "return=representation");
+                if (valida) {
+                    QJsonObject dati;
+                    dati["stato"] = "VALIDATO";
+                    dati["fruizione"] = "FRUITO";
+                    dati["validata_da"] = nomeAdmin;
+                    QNetworkReply* r = manager->sendCustomRequest(request, "PATCH", QJsonDocument(dati).toJson());
+                    connect(r, &QNetworkReply::finished, [this, r]() {
+                        QByteArray res = r->readAll();
+                        qDebug() << "[PATCH LICENZE] HTTP:" << r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                        qDebug() << "[PATCH LICENZE] risposta:" << res;
+                        if (r->error() != QNetworkReply::NoError)
+                            qDebug() << "Errore PATCH licenze:" << r->errorString();
+                        r->deleteLater();
+                        emit operazioneCompletata("Elaborazione completata"); // ← SPOSTATO QUI
+                    });
+                } else {
+                    QNetworkReply* r = manager->sendCustomRequest(request, "DELETE");
+                    connect(r, &QNetworkReply::finished, [this, r]() {
+                        if (r->error() != QNetworkReply::NoError)
+                            qDebug() << "Errore DELETE licenze rifiutate:" << r->errorString();
+                        r->deleteLater();
+                        emit operazioneCompletata("Elaborazione completata"); // ← SPOSTATO QUI
+                    });
+                }
+            } else {
+                // nessuna licenza → emetti subito (già gestito dai riposi normali o lista vuota)
+                emit operazioneCompletata("Elaborazione completata");
+            }
         });
     }
     Q_INVOKABLE void inserisciNotifica(int idDestinatario, QString messaggio, int idRiposoRif = -1, QString nomeAdmin = "") {
@@ -766,15 +850,42 @@ public:
         }
         return false;
     }
+
     Q_INVOKABLE void generaPDF(QVariantList utenti, QVariantList dati, int giorni, QString inizio, QString fine) {
         QString utentiJson = QJsonDocument(QJsonArray::fromVariantList(utenti)).toJson(QJsonDocument::Compact);
-        QString datiJson = QJsonDocument(QJsonArray::fromVariantList(dati)).toJson(QJsonDocument::Compact);
-        emscripten_run_script(("window.__pdfUtenti = " + utentiJson.toStdString() + ";").c_str());
-        emscripten_run_script(("window.__pdfDati = "   + datiJson.toStdString()   + ";").c_str());
-        emscripten_run_script(("window.__pdfGiorni = "  + std::to_string(giorni)  + ";").c_str());
-        emscripten_run_script(("window.__pdfInizio = '" + inizio.toStdString()    + "';").c_str());
-        emscripten_run_script(("window.__pdfFine = '"   + fine.toStdString()      + "';").c_str());
-        emscripten_run_script("generaPDFSpecchio(window.__pdfUtenti, window.__pdfDati, window.__pdfGiorni, window.__pdfInizio, window.__pdfFine);");
+        QString datiJson   = QJsonDocument(QJsonArray::fromVariantList(dati)).toJson(QJsonDocument::Compact);
+
+        utentiJson.replace("\\", "\\\\").replace("'", "\\'");
+        datiJson.replace("\\", "\\\\").replace("'", "\\'");
+
+        QString script = QString(
+            "(function() {"
+            "  function tryGenerate(attempts) {"
+            "    if (typeof window.generaPDFSpecchio === 'function') {"
+            "      var u = JSON.parse('%1');"
+            "      var d = JSON.parse('%2');"
+            "      window.generaPDFSpecchio(u, d, %3, '%4', '%5')"
+            "        .then(function(blob) {"
+            "          var url = URL.createObjectURL(blob);"
+            "          var a = document.createElement('a');"
+            "          a.href = url;"
+            "          a.download = 'specchio_riposi.pdf';"
+            "          document.body.appendChild(a);"
+            "          a.click();"
+            "          setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 1000);"
+            "        })"
+            "        .catch(function(e){ console.error('Errore PDF:', e); });"
+            "    } else if (attempts > 0) {"
+            "      setTimeout(function(){ tryGenerate(attempts-1); }, 100);"
+            "    } else {"
+            "      console.error('generaPDFSpecchio non disponibile dopo timeout');"
+            "    }"
+            "  }"
+            "  tryGenerate(70);"
+            "})()"
+        ).arg(utentiJson).arg(datiJson).arg(giorni).arg(inizio).arg(fine);
+
+        emscripten_run_script(script.toUtf8().constData());
     }
     // --- STRAORDINARI ---
 
@@ -1030,7 +1141,7 @@ public:
             QNetworkRequest request(url);
             impostaHeader(request);
 
-            request.setRawHeader("Prefer", "resolution=ignore-duplicates,return=minimal");
+            request.setRawHeader("Prefer", "resolution=merge-duplicates,return=minimal");
 
             QNetworkReply* reply = manager->post(request, QJsonDocument(dati).toJson());
             connect(reply, &QNetworkReply::finished, [reply, nomeBadge]() {

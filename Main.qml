@@ -4,13 +4,24 @@ import QtQuick.Layouts
 
 
 
-Window {
+ApplicationWindow {
     id: window
     width: 360
     height: 640
     visibility: Window.Maximized
     visible: true
     title: "Gestore Riposi"
+    color: "#f6f8fb"
+    palette.window: "#f6f8fb"
+    palette.windowText: "#202124"
+    palette.base: "#ffffff"
+    palette.alternateBase: "#eef2f7"
+    palette.text: "#202124"
+    palette.button: "#f2f4f8"
+    palette.buttonText: "#202124"
+    palette.highlight: "#1565C0"
+    palette.highlightedText: "#ffffff"
+    palette.placeholderText: "#6b7280"
     property bool haNotificheGlobal: false
     property int notificheCount: 0
 
@@ -39,6 +50,62 @@ Window {
                 cursorPosition = Math.min(newPos, masked.length)
             }
             _dmf._applying = false
+        }
+    }
+
+    component MenuActionButton: Button {
+        id: _menuButton
+        Layout.fillWidth: true
+        implicitHeight: 42
+        hoverEnabled: true
+        font.pixelSize: 14
+        font.bold: true
+
+        contentItem: Text {
+            text: _menuButton.text.trim()
+            font: _menuButton.font
+            color: _menuButton.enabled ? "#1f2937" : "#8b98aa"
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        background: Rectangle {
+            radius: 6
+            color: _menuButton.down ? "#dbeafe"
+                 : _menuButton.hovered ? "#eef6ff"
+                 : "#ffffff"
+            border.color: _menuButton.activeFocus ? "#1565C0"
+                         : _menuButton.hovered ? "#4d91cf"
+                         : "#7f9fbd"
+            border.width: _menuButton.activeFocus || _menuButton.hovered ? 2 : 1
+        }
+    }
+
+    component MenuDangerButton: Button {
+        id: _dangerButton
+        Layout.fillWidth: true
+        implicitHeight: 42
+        hoverEnabled: true
+        font.pixelSize: 14
+        font.bold: true
+
+        contentItem: Text {
+            text: _dangerButton.text.trim()
+            font: _dangerButton.font
+            color: "white"
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        background: Rectangle {
+            radius: 6
+            color: _dangerButton.down ? "#b91c1c"
+                 : _dangerButton.hovered ? "#dc2626"
+                 : "#ef4444"
+            border.color: _dangerButton.hovered || _dangerButton.activeFocus ? "#7f1d1d" : "#b91c1c"
+            border.width: 2
         }
     }
     
@@ -91,17 +158,77 @@ Window {
     Component {
         id: loginPage
         Page {
+            id: paginaLogin
+            property bool loginInCorso: false
+
+            Timer {
+                id: loginTimeout
+                interval: 12000
+                repeat: false
+                onTriggered: {
+                    if (!paginaLogin.loginInCorso) return
+                    paginaLogin.loginInCorso = false
+                    globalErrorLabel.text = "Accesso non completato: connessione lenta o risposta non ricevuta. Riprova."
+                    globalErrorPopup.open()
+                }
+            }
+
+            Connections {
+                target: Backend
+                function onLoginError(messaggio) {
+                    paginaLogin.loginInCorso = false
+                    loginTimeout.stop()
+                }
+                function onLoginSuccess(nomeCompleto, idSeriale) {
+                    paginaLogin.loginInCorso = false
+                    loginTimeout.stop()
+                }
+            }
+
             ColumnLayout {
                 anchors.centerIn: parent
                 spacing: 20
 
                 Label { text: "ACCESSO"; font.bold: true; Layout.alignment: Qt.AlignHCenter }
 
-                TextField { id: cipInput; placeholderText: "Inserisci CIP"; Layout.fillWidth: true }
+                TextField {
+                    id: cipInput
+                    placeholderText: "Inserisci CIP"
+                    Layout.fillWidth: true
+                    inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhPreferUppercase
+                    onTextChanged: {
+                        var maiuscolo = text.toUpperCase()
+                        if (text !== maiuscolo) text = maiuscolo
+                    }
+                }
 
                 Button {
-                    text: "ACCEDI"
-                    onClicked: Backend.login(cipInput.text)
+                    text: paginaLogin.loginInCorso ? "ACCESSO..." : "ACCEDI"
+                    enabled: !paginaLogin.loginInCorso && cipInput.text.trim() !== ""
+                    Layout.fillWidth: true
+                    implicitHeight: 46
+                    font.pixelSize: 15
+                    font.bold: true
+                    onClicked: {
+                        paginaLogin.loginInCorso = true
+                        loginTimeout.restart()
+                        Backend.login(cipInput.text.trim().toUpperCase())
+                    }
+                    contentItem: Text {
+                        text: parent.text
+                        font: parent.font
+                        color: "white"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 8
+                        color: parent.enabled
+                            ? (parent.down ? "#0d47a1" : parent.hovered ? "#1976D2" : "#1565C0")
+                            : "#90a4c8"
+                        border.color: parent.enabled ? "#0a3d91" : "#7a8fb0"
+                        border.width: 2
+                    }
                 }
 
                 Text { id: statusLabel; color: "red" }
@@ -128,7 +255,48 @@ Window {
             property bool colleghiCaricati: false
             property int _attesaColleghi: 0
             property var listaDettaglioStr: []
+            property bool refreshBadgeInCorso: false
+            property string firmaBadgeSalvati: ""
             readonly property var adminIDs: ["1", "2", "3", "19"]
+
+            function avviaRefreshBadge() {
+                if (idDatabase === "" || refreshBadgeInCorso) return
+
+                refreshBadgeInCorso = true
+                refreshBadgeTimeout.restart()
+
+                let oggi = new Date()
+                Backend.caricaBadgeRiposi(idDatabase)
+                Backend.caricaDettaglioStraordinariMese(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1)
+            }
+
+            function completaRefreshBadge() {
+                refreshBadgeInCorso = false
+                refreshBadgeTimeout.stop()
+            }
+
+            function aggiornaBadgeDaRisultato(risultato) {
+                paginaMenu.badgeCorrente = risultato && risultato.best ? risultato.best : { nome: "", livello: 0, colore: "#888888" }
+                paginaMenu.tuttiBadge = risultato && risultato.tutti ? risultato.tutti : []
+
+                if (!risultato || !risultato.tutti || risultato.tutti.length === 0) return
+
+                var firma = JSON.stringify(risultato.tutti.map(function(b) {
+                    return {
+                        nome: b.nome,
+                        livello: b.livello,
+                        colore: b.colore,
+                        occorrenze: b.occorrenze || 1
+                    }
+                }))
+
+                if (firma === paginaMenu.firmaBadgeSalvati) return
+
+                paginaMenu.firmaBadgeSalvati = firma
+                var _oggi = new Date()
+                Backend.salvaBadgeMese(paginaMenu.idDatabase, _oggi.getFullYear(), _oggi.getMonth() + 1, risultato.tutti)
+            }
+
             function toDate(s) {
                 if (!s || s === "") return new Date(0)
                 var p = s.split("-")
@@ -139,6 +307,32 @@ Window {
                 let m = ("0" + (d.getMonth() + 1)).slice(-2)
                 let day = ("0" + d.getDate()).slice(-2)
                 return y + "-" + m + "-" + day
+            }
+            function callGeneraPDFSpecchioSafe(utenti, dati, giorni, inizio, fine, timeoutMs = 7000) {
+                return new Promise(function(resolve, reject) {
+                    var start = Date.now();
+                    function check() {
+                        if (window.pdfJsReady && typeof window.generaPDFSpecchio === "function") {
+                            callGeneraPDFSpecchioSafe(utenti, dati, giorni, inizio, fine)
+                                .then(function(pdfBlob) {
+                                    var url = URL.createObjectURL(pdfBlob);
+                                    Qt.openUrlExternally(url);
+                                })
+                                .catch(function(err) {
+                                    console.log("Errore generazione PDF:", err);
+                                    globalErrorLabel.text = "Errore generazione PDF: " + (err && err.message ? err.message : err);
+                                    globalErrorPopup.open();
+                                });
+                            return;
+                        }
+                        if ((Date.now() - start) >= timeoutMs) {
+                            reject(new Error("generaPDFSpecchio non disponibile dopo timeout"));
+                            return;
+                        }
+                        setTimeout(check, 50);
+                    }
+                    check();
+                });
             }
 
             function isMeseCorrente(d) {
@@ -189,6 +383,44 @@ Window {
                     let note = r.a.toUpperCase()
                     return (note.includes("MAT") || note.includes("CIT") ||
                             note.includes("POM") || note.includes("SER"))
+                }
+
+                function tipoLicenzaParziale(r) {
+                    if (!r || !r.a) return ""
+                    let note = r.a.toUpperCase()
+                    if (note.includes("MAT")) return "MAT"
+                    if (note.includes("POM")) return "POM"
+                    if (note.includes("SER")) return "SER"
+                    if (note.includes("CIT")) return "CIT"
+                    return ""
+                }
+
+                function lunediSettimanaISO(dataISO) {
+                    var d = toDate(dataISO)
+                    var giorno = d.getDay()
+                    var diff = giorno === 0 ? -6 : 1 - giorno
+                    d.setDate(d.getDate() + diff)
+                    return toISO(d)
+                }
+
+                function contaOccorrenzeLicenzeSettimana(lista, tipiValidi) {
+                    var perSettimana = {}
+                    lista.forEach(r => {
+                        if (!r || !r.data_fruizione || r.data_fruizione === "") return
+                        if ((r.stato || "").toUpperCase() !== "VALIDATO") return
+
+                        var tipo = tipoLicenzaParziale(r)
+                        if (tipiValidi.indexOf(tipo) === -1) return
+
+                        var chiaveSettimana = lunediSettimanaISO(r.data_fruizione)
+                        perSettimana[chiaveSettimana] = (perSettimana[chiaveSettimana] || 0) + 1
+                    })
+
+                    var occorrenze = 0
+                    Object.keys(perSettimana).forEach(k => {
+                        occorrenze += Math.floor(perSettimana[k] / 3)
+                    })
+                    return occorrenze
                 }
 
                 function checkMordiFuggi(lista) {
@@ -412,17 +644,33 @@ Window {
                 var tuttiInsieme = tuttiMese.filter(r =>
                     r.data_fruizione <= oggiISO && !isLicenzaParziale(r)
                 )
+                var tuttiMeseAdOggi = tuttiMese.filter(r =>
+                    r.data_fruizione <= oggiISO
+                )
 
                 // ── 3. VALUTAZIONE BADGE ──────────────────────────────────────────
 
                 var candidati = []
 
+                // UFFICIO ANAGRAFE / IL VAMPIRO - licenze validate nella stessa settimana lun-dom
+                var occorrenzeAnagrafe = contaOccorrenzeLicenzeSettimana(tuttiMeseAdOggi, ["MAT"])
+                if (occorrenzeAnagrafe > 0)
+                    candidati.push({ nome: "Ufficio anagrafe", livello: 1, colore: "#C0C0C0", occorrenze: occorrenzeAnagrafe })
+
+                var occorrenzeVampiro  = contaOccorrenzeLicenzeSettimana(tuttiMeseAdOggi, ["SER", "POM"])
+                if (occorrenzeVampiro > 0)
+                    candidati.push({ nome: "Il vampiro", livello: 1, colore: "#C0C0C0", occorrenze: occorrenzeVampiro })
+
                 // CAMALEONTE — giorni in cui erano presenti 7+ colleghi
                 var conteggioCAMALEONTE = 0
+                var _dateGiaContateC = {}
                 for (var k = 0; k < tuttiInsieme.length; k++) {
-                    if (!isLicenzaParziale(tuttiInsieme[k]) &&
-                        (mappaColleghi[tuttiInsieme[k].data_fruizione] || 0) >= 7) {
+                    var _r = tuttiInsieme[k]
+                    var _dataR = _r.data_fruizione
+                    if (!_dataR || _dateGiaContateC[_dataR]) continue   // già contata → skip
+                    if ((mappaColleghi[_dataR] || 0) >= 7) {
                         conteggioCAMALEONTE++
+                        _dateGiaContateC[_dataR] = true
                     }
                 }
                 if (conteggioCAMALEONTE > 0)
@@ -450,7 +698,7 @@ Window {
                 // IL GUERRIERO — quanti weekend consecutivi senza riposo (max streak)
                 var wkGuerr = contaWeekendGuerriero(tuttiInsieme)
                 if (wkGuerr >= 2)
-                    candidati.push({ nome: "Il Guerriero", livello: 2, colore: "#FFD700", occorrenze: wkGuerr })
+                    candidati.push({ nome: "Il Guerriero", livello: 2, colore: "#FFD700", occorrenze: 1 })
 
                 // TETRIS — quante volte si incastra il pattern R-≤2gg-R
                 var conteggioTETRIS = 0
@@ -764,27 +1012,34 @@ Window {
                         Backend.contaNotificheNonLette(parseInt(idDatabase));
                         let oggi = new Date();
                         Backend.caricaOreBadgeMenu(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1);
-                        Backend.caricaDettaglioStraordinariMese(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1);
-                        Backend.caricaBadgeRiposi(idDatabase)
+                        paginaMenu.avviaRefreshBadge()
                     }
                 });
             }
             Timer {
+                id: refreshBadgeTimeout
+                interval: 25000
+                repeat: false
+                onTriggered: {
+                    paginaMenu._attesaColleghi = 0
+                    paginaMenu.completaRefreshBadge()
+                }
+            }
+            Timer {
                 id: notificheTimer
-                interval: 30000  
+                interval: 60000
                 repeat: true
                 running: true    
                 onTriggered: {
                     if (idDatabase !== "") {
                         Backend.contaNotificheNonLette(parseInt(idDatabase))
-                        let oggi = new Date();
-                        Backend.caricaBadgeRiposi(idDatabase)
-                        Backend.caricaDettaglioStraordinariMese(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1)
+                        paginaMenu.avviaRefreshBadge()
                     }
                 }
             }
             Connections {
                 target: Backend
+
                 function onNotificheRicevute(lista) {
                     paginaMenu.listaNotifiche = lista
                 }
@@ -794,9 +1049,9 @@ Window {
                 function onOperazioneCompletata(messaggio) {
                     let oggi = new Date();
                     Backend.caricaOreBadgeMenu(idDatabase, oggi.getFullYear(), oggi.getMonth() + 1)
+                    paginaMenu.avviaRefreshBadge()
                 }
                 function onBadgeRiposiRicevuti(lista) {
-                    console.log("RIPOSI RICEVUTI:", JSON.stringify(lista))
                     paginaMenu.listaRiposiRaw = lista
                     paginaMenu.mappaColleghi = {}
                     let oggiB = new Date()
@@ -804,27 +1059,26 @@ Window {
                     let fineMB = new Date(oggiB.getFullYear(), oggiB.getMonth() + 1, 0)
                     let fineMISOB = paginaMenu.toISO(fineMB)
 
-                    let daRichiedere = lista.filter(function(r) {
-                        return r.data_fruizione && r.data_fruizione !== "" &&
-                               r.data_fruizione >= primoMeseB &&
-                               r.data_fruizione <= fineMISOB
+                    let dateUnivoche = {}
+                    lista.forEach(function(r) {
+                        if (r.data_fruizione && r.data_fruizione !== "" &&
+                            r.data_fruizione >= primoMeseB &&
+                            r.data_fruizione <= fineMISOB)
+                            dateUnivoche[r.data_fruizione] = true
                     })
+                    let daRichiedere = Object.keys(dateUnivoche)
 
                     if (daRichiedere.length === 0) {
                         paginaMenu._attesaColleghi = 0
                         var risultato = paginaMenu.calcolaBadge(lista, {}, paginaMenu.oreStrMese, paginaMenu.listaDettaglioStr)
-                        paginaMenu.badgeCorrente = risultato && risultato.best ? risultato.best : { nome: "", livello: 0, colore: "#888888"}
-                        paginaMenu.tuttiBadge = risultato && risultato.tutti ? risultato.tutti : []
-                        if (risultato && risultato.tutti && risultato.tutti.length > 0) {
-                            var _oggi = new Date()
-                            Backend.salvaBadgeMese(paginaMenu.idDatabase, _oggi.getFullYear(), _oggi.getMonth() + 1, risultato.tutti)
-                        }
-                        return 
+                        paginaMenu.aggiornaBadgeDaRisultato(risultato)
+                        paginaMenu.completaRefreshBadge()
+                        return
                     }
 
                     paginaMenu._attesaColleghi = daRichiedere.length
                     for (var i = 0; i < daRichiedere.length; i++) {
-                        Backend.contaColleghiPerData(paginaMenu.idDatabase, daRichiedere[i].data_fruizione)
+                        Backend.contaColleghiPerData(paginaMenu.idDatabase, daRichiedere[i])
                     }
                 }
                 function onColleghiPerDataRicevuti(dataISO, count) {
@@ -834,29 +1088,25 @@ Window {
 
                     if (Object.keys(paginaMenu.mappaColleghi).length === paginaMenu._attesaColleghi) {
                         var risultato = paginaMenu.calcolaBadge(paginaMenu.listaRiposiRaw, paginaMenu.mappaColleghi, paginaMenu.oreStrMese, paginaMenu.listaDettaglioStr)
-                        paginaMenu.badgeCorrente = risultato && risultato.best ? risultato.best : { nome: "", livello: 0, colore: "#888888"}
-                        paginaMenu.tuttiBadge = risultato && risultato.tutti ? risultato.tutti : []
-                        if (risultato && risultato.tutti && risultato.tutti.length > 0) {
-                            var _oggi = new Date()
-                            Backend.salvaBadgeMese(paginaMenu.idDatabase, _oggi.getFullYear(), _oggi.getMonth() + 1, risultato.tutti)
-                        }
+                        paginaMenu.aggiornaBadgeDaRisultato(risultato)
+                        paginaMenu.completaRefreshBadge()
                     }
                 }
                 function onDettaglioStraordinariRicevuti(lista) {
                     paginaMenu.listaDettaglioStr = lista
-                    if (paginaMenu._attesaColleghi !== 0) return
+
+                    // ✅ FIX: ricalcola badge se i riposi sono già arrivati e non stiamo ancora aspettando i colleghi
+                    if (paginaMenu.listaRiposiRaw.length === 0) return   // riposi non ancora arrivati, aspetta
+                    if (paginaMenu._attesaColleghi !== 0) return         // stiamo aspettando i colleghi, ci penserà onColleghiPerDataRicevuti
+
                     var risultato = paginaMenu.calcolaBadge(
                         paginaMenu.listaRiposiRaw,
                         paginaMenu.mappaColleghi,
                         paginaMenu.oreStrMese,
                         lista
                     )
-                    paginaMenu.badgeCorrente = risultato && risultato.best ? risultato.best : { nome: "", livello: 0, colore: "#888888"}
-                    paginaMenu.tuttiBadge = risultato && risultato.tutti ? risultato.tutti : []
-                    if (risultato && risultato.tutti && risultato.tutti.length > 0) {
-                        var _oggi = new Date()
-                        Backend.salvaBadgeMese(paginaMenu.idDatabase, _oggi.getFullYear(), _oggi.getMonth() + 1, risultato.tutti)
-                    }
+                    paginaMenu.aggiornaBadgeDaRisultato(risultato)
+                    paginaMenu.completaRefreshBadge()
                 }
             }
             
@@ -895,6 +1145,8 @@ Window {
                                 if (b.nome === "Il Papa")             return "https://media2.giphy.com/media/m2lzGNOPx2UgE74kB2/giphy.gif"
                                 if (b.nome === "Giornata da Leoni") return "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExc3QxZTJ3YTBqejNsNGU1MDMzMWZ1MnNmdzU1Ymh3aDF6Zjh4b2k3dSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l1BUojJe4cno1U0CgL/giphy.gif"
                                 if (b.nome === "Sprint di Fuoco")   return "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2xybDdjMnIwazFpaWd5MmY0anA1cW4yczVhYWl2cWh5NGpleDZnaSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/YA6dmVW0gfIw8/giphy.gif"
+                                if (b.nome === "Ufficio anagrafe")  return "https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExNW5mNnBzZWpucmF0cWJhajBsYmt1M3d4anUwa2pzbXh2NjA5ZHM3dSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/cXblnKXr2BQOaYnTni/giphy.gif"
+                                if (b.nome === "Il vampiro")        return "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExMjg3ZzVmbXQ0NTFtMmlxejFucXJrc2xiMjhzNXhkMWZ6YmZvaHY2aSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ljE57hRBCNcsg/giphy.gif"
                                 return "https://media0.giphy.com/media/1xkMJIvxeKiDS/giphy.gif"
                             }
                         }
@@ -959,51 +1211,41 @@ Window {
                     visible: false // Potrai collegarlo a una property del Backend se vuoi automatizzarlo
                 }
 
-                Button {
+                MenuActionButton {
                     text: "REPORT"
-                    Layout.fillWidth: true
                     onClicked: stack.push(reportPage, {"idDatabase": paginaMenu.idDatabase})
                 }
-                Button {
+                MenuActionButton {
                     text: "STRAORDINARI"
-                    Layout.fillWidth: true
                     onClicked: stack.push(straordinariPage, {"idDatabase": paginaMenu.idDatabase})
                 }
 
-                Button {
+                MenuActionButton {
                     text: "VISUALIZZA SPECCHIO"
-                    Layout.fillWidth: true
                     onClicked: stack.push(specchioPage, {
                                     "idDatabase": paginaMenu.idDatabase,
                                     "utente": paginaMenu.utente
                                 })
                 }
 
-                Button {
+                MenuActionButton {
                     text: " INSERISCI NUOVO RIPOSO"
-                    Layout.fillWidth: true
                     onClicked: stack.push(inserimentoPage, {"idDatabase": paginaMenu.idDatabase})
                 }
-                Button {
+                MenuActionButton {
                     text: " FRUIZIONE RIPOSO"
-                    Layout.fillWidth: true
                     onClicked: stack.push(fruizionePage, {"idDatabase": paginaMenu.idDatabase})
                 }
-                Button {
+                MenuActionButton {
                     text: " MODIFICA RIPOSO"
-                    Layout.fillWidth: true
                     onClicked: stack.push(modificaPage, {"idDatabase": paginaMenu.idDatabase})
                 }
-                Button {
+                MenuActionButton {
                     text: " CANCELLA RIPOSO"
-                    Layout.fillWidth: true
                     onClicked: stack.push(cancellaPage, {"idDatabase": paginaMenu.idDatabase})
                 }
-                Button {
+                MenuDangerButton {
                     text: " ESCI"
-                    Layout.fillWidth: true
-                    palette.button: "red"
-                    palette.buttonText: "white"
                     onClicked: stack.pop()
                 }
             }
@@ -1524,6 +1766,33 @@ Window {
                         "Solo FRUITI"
                     ]
                     onActivated: Backend.caricaReport(idDatabase, index + 1)
+                    contentItem: Text {
+                        leftPadding: 8
+                        text: comboFiltro.displayText
+                        font.pixelSize: 13
+                        font.bold: true
+                        color: "#1f2937"
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 6
+                        color: comboFiltro.pressed ? "#dbeafe" : "#ffffff"
+                        border.color: comboFiltro.activeFocus ? "#1565C0" : "#7f9fbd"
+                        border.width: comboFiltro.activeFocus ? 2 : 1.5
+                    }
+                    delegate: ItemDelegate {
+                        width: comboFiltro.width
+                        contentItem: Text {
+                            text: modelData
+                            color: "#1f2937"
+                            font.pixelSize: 13
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 8
+                        }
+                        background: Rectangle {
+                            color: hovered ? "#dbeafe" : "#ffffff"
+                        }
+                    }
                 }
 
                 // Tabella dei risultati
@@ -1644,7 +1913,32 @@ Window {
                         model: ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
                                 "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
                         readonly property string valoreMese: (currentIndex + 1).toString().padStart(2, '0')
-                        Component.onCompleted: currentIndex = new Date().getMonth() // Imposta mese corrente
+                        Component.onCompleted: currentIndex = new Date().getMonth()
+                        contentItem: Text {
+                            leftPadding: 8
+                            text: comboMese.displayText
+                            font.pixelSize: 13
+                            font.bold: true
+                            color: "#1f2937"
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            radius: 6
+                            color: comboMese.pressed ? "#dbeafe" : "#ffffff"
+                            border.color: comboMese.activeFocus ? "#1565C0" : "#7f9fbd"
+                            border.width: comboMese.activeFocus ? 2 : 1.5
+                        }
+                        delegate: ItemDelegate {
+                            width: comboMese.width
+                            contentItem: Text {
+                                text: modelData
+                                color: "#1f2937"
+                                font.pixelSize: 13
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: 8
+                            }
+                            background: Rectangle { color: hovered ? "#dbeafe" : "#ffffff" }
+                        }
                     }
                     Label {text: "/" }
                     ComboBox {
@@ -1663,6 +1957,31 @@ Window {
                             for(let i=0; i<model.length; i++) {
                                 if(model[i] === annoOggi) { currentIndex = i; break; }
                             }
+                        }
+                        contentItem: Text {
+                            leftPadding: 8
+                            text: comboAnno.displayText
+                            font.pixelSize: 13
+                            font.bold: true
+                            color: "#1f2937"
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            radius: 6
+                            color: comboAnno.pressed ? "#dbeafe" : "#ffffff"
+                            border.color: comboAnno.activeFocus ? "#1565C0" : "#7f9fbd"
+                            border.width: comboAnno.activeFocus ? 2 : 1.5
+                        }
+                        delegate: ItemDelegate {
+                            width: comboAnno.width
+                            contentItem: Text {
+                                text: modelData
+                                color: "#1f2937"
+                                font.pixelSize: 13
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: 8
+                            }
+                            background: Rectangle { color: hovered ? "#dbeafe" : "#ffffff" }
                         }
                     }
                     Button {
@@ -1892,9 +2211,22 @@ Window {
                                                             globalErrorPopup.open();
                                                         }
                                                     } else {
-                                                        let dataMat = trovato.maturato ? trovato.maturato : "N.D.";
-                                                        globalErrorLabel.text = "Attenzione: è presente un " + tipo + "\nmaturato il: " + dataMat + ".\nDevi prima rimuoverlo."
-                                                        globalErrorPopup.open()
+                                                        // Solo il proprietario può ritirare il proprio riposo RICHIESTO
+                                                        let riga = utenteDellaRiga.trim().toUpperCase();
+                                                        let loggato = paginaSpecchio.utente.trim().toUpperCase();
+                                                        let paroleLoggato = loggato.split(" ");
+                                                        let isProprietario = paroleLoggato.length > 0 && paroleLoggato.every(p => riga.includes(p));
+                                                        let statoTrovato = trovato.stato ? trovato.stato.toUpperCase() : "";
+                                                        if (isProprietario && statoTrovato === "RICHIESTO") {
+                                                            popupRitiraRiposo.dataCella      = dataFinale
+                                                            popupRitiraRiposo.dataMaturazione = trovato.maturato ? trovato.maturato : ""
+                                                            popupRitiraRiposo.idRiposoTarget  = trovato.id_riposo ? trovato.id_riposo : 0
+                                                            popupRitiraRiposo.open()
+                                                        } else {
+                                                            let dataMat = trovato.maturato ? trovato.maturato : "N.D.";
+                                                            globalErrorLabel.text = "Attenzione: è presente un " + tipo + "\nmaturato il: " + dataMat + ".\nDevi prima rimuoverlo."
+                                                            globalErrorPopup.open()
+                                                        }
                                                     }
                                                 } else {
                                                     let riga = utenteDellaRiga.trim().toUpperCase();
@@ -1902,10 +2234,8 @@ Window {
                                                     let paroleLoggato = loggato.split(" ");
                                                     let corrisponde = paroleLoggato.length > 0 && paroleLoggato.every(parola => riga.includes(parola));
                                                     if (corrisponde) {
-                                                        popupLicenza.utenteSelezionato = paginaSpecchio.idDatabase
-                                                        popupLicenza.dataSelezionata = dataFinale
-                                                        popupLicenza.campoCodice.text = "";
-                                                        popupLicenza.open()
+                                                        popupSceltaAzione.dataSelezionata = dataFinale
+                                                        popupSceltaAzione.open()
                                                     }
                                                 }
                                             }
@@ -1931,7 +2261,12 @@ Window {
                                                 if (t.indexOf("MEDICO") !== -1)      return "#2196F3"; // Blu
                                                 if (t.indexOf("STUDIO") !== -1)      return "#333333"; // Nero
                                                 if (t.indexOf("SANGUE") !== -1)      return "#8B4513"; // MARRONE
-                                                if (t.indexOf("LICENZA") !== -1)     return "#9C27B0";
+                                                if (t.indexOf("LICENZA") !== -1) {
+                                                    let codA = trovato.a ? trovato.a.toUpperCase() : "";
+                                                    if (codA === "MAT") return "#00BCD4"; 
+                                                    if (codA === "POM") return "#00BCD4"; // Ciano acceso - Pomeriggio
+                                                    return "#9C27B0"; // Viola - LICENZA generica
+                                                }
                                                 return "#4CAF50"; // Verde
                                             }
                                         }
@@ -1963,16 +2298,30 @@ Window {
 
                             Button {
                                 text: "Approva Richieste Riposi"
+                                font.bold: true
+                                font.pixelSize: 13
+                                contentItem: Text {
+                                    text: parent.text
+                                    font: parent.font
+                                    color: "white"
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    radius: 7
+                                    color: parent.down ? "#1b5e20" : parent.hovered ? "#2e7d32" : "#388E3C"
+                                    border.color: "#1b5e20"
+                                    border.width: 2
+                                }
                                 onClicked: {
-                                    let listaDaInviare = [];
-                                    let idDestinatario = -1;
+                                    let lista = [];
                                     function parseDataLocale(d) {
                                         if (!d) return null;
                                         let dateObj = new Date(d);
                                         if (typeof d === "string" && d.includes("-")) {
                                             let parti = d.split("-");
                                             if (parti[0].length === 4) {
-                                            dateObj = new Date(parseInt(parti[0]), parseInt(parti[1]) - 1, parseInt(parti[2]));
+                                                dateObj = new Date(parseInt(parti[0]), parseInt(parti[1]) - 1, parseInt(parti[2]));
                                             }
                                         }
                                         if (isNaN(dateObj.getTime())) return null;
@@ -1981,8 +2330,7 @@ Window {
                                     }
                                     let dInizio = parseDataLocale(Backend.inizioBlocco);
                                     let dFine = parseDataLocale(Backend.fineBlocco);
-                                    console.log("DEBUG FILTRO: Da", dInizio.toLocaleDateString(), "A", dFine.toLocaleDateString());
-                                    for(let i=0; i < paginaSpecchio.datiRiposi.length; i++) {
+                                    for (let i = 0; i < paginaSpecchio.datiRiposi.length; i++) {
                                         let item = paginaSpecchio.datiRiposi[i];
                                         if (!item) continue;
                                         let annoCorrente = parseInt(comboAnno.currentText);
@@ -1991,28 +2339,48 @@ Window {
                                         let dataItem = new Date(annoCorrente, meseCorrente, giornoCorrente);
                                         dataItem.setHours(0, 0, 0, 0);
                                         let statoNormalizzato = item.stato ? item.stato.toString().toUpperCase() : "";
-                                        if (item.id_riposo === 741) {
-                                            console.log("PITINO RICOSTRUITO:", dataItem.toLocaleDateString());
-                                        }
-                                        if(statoNormalizzato === "RICHIESTO" || statoNormalizzato === "PENDENTE") {
-                                            if (dataItem >= dInizio && dataItem <= dFine) {
-                                                if (item.id_riposo) {
-                                                    listaDaInviare.push(Number(item.id_riposo));
-                                                    idDestinatario = item.id_reale;
-                                                }
-                                            }
+                                        let codA = (item.a || "").toUpperCase()
+                                        let escluso = ["LS","CP","104","CIT"].indexOf(codA) >= 0 || codA.startsWith("LO")
+                                        if (!escluso &&
+                                            (statoNormalizzato === "RICHIESTO" || statoNormalizzato === "PENDENTE") &&
+                                            dataItem >= dInizio && dataItem <= dFine && item.id_riposo) {
+                                            lista.push({
+                                                id_riposo:   Number(item.id_riposo),
+                                                id_reale:    item.id_reale,
+                                                utente:      item.u,
+                                                giorno:      item.d,
+                                                tipo:        item.tipo,
+                                                codice_a:    item.a || "",
+                                                selezionato: false
+                                            });
                                         }
                                     }
-                                    if(listaDaInviare.length > 0) {
-                                        console.log("ID TROVATI:", listaDaInviare);
-                                        Backend.processaValidazioni(listaDaInviare, true, paginaSpecchio.utente, idDestinatario)
+                                    if (lista.length === 0) {
+                                        globalErrorLabel.text = "Nessuna richiesta da approvare nel periodo blocco.";
+                                        globalErrorPopup.open();
                                     } else {
-                                        console.log("Nessun riposo da approvare trovato nell'array datiRiposi")
+                                        popupApprovaSelettivo.listaRichieste = lista;
+                                        popupApprovaSelettivo.open();
                                     }
                                 }
                             }
                             Button {
-                                text: "📄 Stampa PDF"
+                                text: " Stampa PDF"
+                                font.bold: true
+                                font.pixelSize: 13
+                                contentItem: Text {
+                                    text: parent.text
+                                    font: parent.font
+                                    color: "white"
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    radius: 7
+                                    color: parent.down ? "#0d47a1" : parent.hovered ? "#1565C0" : "#1976D2"
+                                    border.color: "#0d47a1"
+                                    border.width: 2
+                                }
                                 onClicked: {
                                     let inizio = Backend.inizioBlocco
                                     let fine = Backend.fineBlocco
@@ -2037,12 +2405,20 @@ Window {
 
                             Button {
                                 text: "Rifiuta Richieste Riposi"
+                                font.bold: true
+                                font.pixelSize: 13
                                 contentItem: Text {
                                     text: parent.text
-                                    color: "#d32f2f" 
+                                    font: parent.font
+                                    color: "white"
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
-                                    font.bold: true
+                                }
+                                background: Rectangle {
+                                    radius: 7
+                                    color: parent.down ? "#7f1d1d" : parent.hovered ? "#b91c1c" : "#dc2626"
+                                    border.color: "#7f1d1d"
+                                    border.width: 2
                                 }
                                 onClicked: {
                                     let lista = [];
@@ -2063,7 +2439,10 @@ Window {
                                         let dataItem = new Date(annoCorrente, meseCorrente, giornoCorrente);
                                         dataItem.setHours(0, 0, 0, 0);
                                         let statoN = item.stato ? item.stato.toString().toUpperCase() : "";
-                                        if ((statoN === "RICHIESTO" || statoN === "PENDENTE") &&
+                                        let codARif = (item.a || "").toUpperCase()
+                                        let esclusoRif = ["LS","CP","104","CIT"].indexOf(codARif) >= 0 || codARif.startsWith("LO")
+                                        if (!esclusoRif &&
+                                            (statoN === "RICHIESTO" || statoN === "PENDENTE") &&
                                             dataItem >= dInizio && dataItem <= dFine && item.id_riposo) {
                                             lista.push({
                                                 id_riposo:  Number(item.id_riposo),
@@ -2071,6 +2450,7 @@ Window {
                                                 utente:     item.u,
                                                 giorno:     item.d,
                                                 tipo:       item.tipo,
+                                                codice_a:    item.a || "",
                                                 selezionato: false
                                             });
                                         }
@@ -2089,31 +2469,180 @@ Window {
                 }
             }
 
+            // ===== POPUP SELEZIONE AZIONE =====
             Popup {
-                id: popupLicenza
-                width: 250
-                height: 200
+                id: popupSceltaAzione
+                anchors.centerIn: parent
+                width: Math.min(parent.width * 0.85, 300)
                 modal: true
                 focus: true
-                anchors.centerIn: parent
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-
-                property string utenteSelezionato: ""
                 property string dataSelezionata: ""
-                property alias campoCodice: inputCodice
+
                 background: Rectangle {
-                    radius: 10
-                    border.color: "#2196F3"
-                    border.width: 2
+                    radius: 12; color: "white"
+                    border.color: "#1565C0"; border.width: 2
                 }
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 15
+                    anchors.margins: 16
+                    spacing: 10
+
+                    Label {
+                        text: "Cosa vuoi inserire?"
+                        font.bold: true; font.pixelSize: 15; color: "#1565C0"
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Label {
+                        text: popupSceltaAzione.dataSelezionata
+                        font.pixelSize: 11; color: "#888"
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                    Button {
+                        text: "  LICENZE"
+                        Layout.fillWidth: true; implicitHeight: 44
+                        font.bold: true; font.pixelSize: 14
+                        contentItem: Text { text: parent.text; font: parent.font; color: "#1565C0"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        background: Rectangle { radius: 8; color: parent.down ? "#dbeafe" : parent.hovered ? "#eef6ff" : "white"; border.color: "#1565C0"; border.width: 2 }
+                        onClicked: {
+                            popupLicenza.dataSelezionata = popupSceltaAzione.dataSelezionata
+                            popupLicenza.campoCodice.text = ""
+                            popupSceltaAzione.close()
+                            popupLicenza.open()
+                        }
+                    }
+
+                    Button {
+                        text: "  RIPOSI"
+                        Layout.fillWidth: true; implicitHeight: 44
+                        font.bold: true; font.pixelSize: 14
+                        contentItem: Text { text: parent.text; font: parent.font; color: "#388E3C"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        background: Rectangle { radius: 8; color: parent.down ? "#e8f5e9" : parent.hovered ? "#f1fdf3" : "white"; border.color: "#388E3C"; border.width: 2 }
+                        onClicked: {
+                            popupSceltaAzione.close()
+                            stack.push(fruizionePage, {
+                                "idDatabase": paginaSpecchio.idDatabase,
+                                "dataPreimpostata": popupSceltaAzione.dataSelezionata
+                            })
+                        }
+                    }
+
+                    Button {
+                        text: "  PREFERENZE"
+                        Layout.fillWidth: true; implicitHeight: 44
+                        font.bold: true; font.pixelSize: 14
+                        contentItem: Text { text: parent.text; font: parent.font; color: "#E65100"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        background: Rectangle { radius: 8; color: parent.down ? "#fff3e0" : parent.hovered ? "#fff8f0" : "white"; border.color: "#E65100"; border.width: 2 }
+                        onClicked: {
+                            popupPreferenze.dataSelezionata = popupSceltaAzione.dataSelezionata
+                            popupSceltaAzione.close()
+                            popupPreferenze.open()
+                        }
+                    }
+
+                    Button {
+                        text: "ANNULLA"
+                        Layout.fillWidth: true; implicitHeight: 36
+                        font.pixelSize: 13
+                        onClicked: popupSceltaAzione.close()
+                    }
+                }
+            }
+            // ===== POPUP RITIRA RIPOSO (riporta RICHIESTO → ACQUISITO) =====
+            Popup {
+                id: popupRitiraRiposo
+                anchors.centerIn: parent
+                width: Math.min(parent.width * 0.85, 300)
+                modal: true
+                focus: true
+                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                property string dataCella: ""
+                property string dataMaturazione: ""
+                property int    idRiposoTarget: 0
+
+                background: Rectangle {
+                    radius: 12; color: "white"
+                    border.color: "#ef4444"; border.width: 2
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 16
+                    spacing: 10
+
+                    Label {
+                        text: "Ritira Richiesta Riposo"
+                        font.bold: true; font.pixelSize: 15; color: "#ef4444"
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Label {
+                        text: "Data fruizione: " + popupRitiraRiposo.dataCella
+                        font.pixelSize: 12; color: "#555"
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Label {
+                        text: "Maturato il: " + popupRitiraRiposo.dataMaturazione
+                        font.pixelSize: 12; color: "#555"
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+                    Label {
+                        text: "Il riposo tornerà DISPONIBILE nella pagina Fruizione."
+                        font.pixelSize: 11; color: "#888"; font.italic: true
+                        wrapMode: Text.WordWrap; Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    Button {
+                        text: "  CONFERMA RITIRO"
+                        Layout.fillWidth: true; implicitHeight: 44
+                        font.bold: true; font.pixelSize: 14
+                        contentItem: Text { text: parent.text; font: parent.font; color: "white"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        background: Rectangle { radius: 8; color: parent.down ? "#b91c1c" : parent.hovered ? "#dc2626" : "#ef4444"; border.color: "#7f1d1d"; border.width: 2 }
+                        onClicked: {
+                            if (Backend.isOperazioneBloccata(paginaSpecchio.idDatabase, popupRitiraRiposo.dataCella)) {
+                                popupRitiraRiposo.close()
+                                return
+                            }
+                            Backend.modificaRiposo(paginaSpecchio.idDatabase, popupRitiraRiposo.dataMaturazione, 0, 0)
+                            popupRitiraRiposo.close()
+                        }
+                    }
+                    Button {
+                        text: "ANNULLA"; Layout.fillWidth: true; implicitHeight: 36
+                        font.pixelSize: 13
+                        onClicked: popupRitiraRiposo.close()
+                    }
+                }
+            }
+
+            // ===== POPUP INSERIMENTO LICENZA (testo libero max 5 char) =====
+            Popup {
+                id: popupLicenza
+                anchors.centerIn: parent
+                width: Math.min(parent.width * 0.85, 280)
+                modal: true; focus: true
+                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                property string dataSelezionata: ""
+                property alias campoCodice: inputCodice
+
+                background: Rectangle { radius: 10; color: "white"; border.color: "#2196F3"; border.width: 2 }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 12
+
                     Label {
                         text: "Inserisci Licenza"
-                        font.bold: true
+                        font.bold: true; font.pixelSize: 14
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Label {
+                        text: popupLicenza.dataSelezionata
+                        font.pixelSize: 11; color: "#888"
                         Layout.alignment: Qt.AlignHCenter
                     }
                     TextField {
@@ -2121,31 +2650,93 @@ Window {
                         placeholderText: "Es: LO, LS ..."
                         Layout.fillWidth: true
                         horizontalAlignment: Text.AlignHCenter
-                        maximumLength: 5 // Opzionale: evita testi troppo lunghi
+                        maximumLength: 5
+                        font.pixelSize: 16; font.bold: true
                     }
                     RowLayout {
-                        Layout.fillWidth: true
+                        Layout.fillWidth: true; spacing: 8
                         Button {
-                            text: "SALVA"
-                            Layout.fillWidth: true
+                            text: "SALVA"; Layout.fillWidth: true
+                            font.bold: true
+                            contentItem: Text { text: parent.text; font: parent.font; color: "white"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                            background: Rectangle { radius: 7; color: parent.down ? "#0d47a1" : parent.hovered ? "#1976D2" : "#1565C0"; border.color: "#0d47a1"; border.width: 2 }
                             onClicked: {
-                                console.log("Valore inserito nel popup: " + inputCodice.text)
-                                if (paginaSpecchio.idDatabase === "" || paginaSpecchio.idDatabase === undefined) {
-                                    console.error("ERRORE: idDatabase è vuoto!")
-                                    return
-                                }
+                                if (inputCodice.text.trim() === "") return
                                 Backend.salvaLicenzaPersonale(paginaSpecchio.idDatabase, popupLicenza.dataSelezionata, inputCodice.text)
                                 popupLicenza.close()
-                                Backend.caricaSpecchioAdmin(txtMese.text, txtAnno.text)
                             }
                         }
                         Button {
-                            text: "CHIUDI"
-                            Layout.fillWidth: true
-                            onClicked: {
-                            popupLicenza.close()
-                            }
+                            text: "ANNULLA"; Layout.fillWidth: true
+                            onClicked: popupLicenza.close()
                         }
+                    }
+                }
+            }
+
+            // ===== POPUP PREFERENZE (MAT / POM) =====
+            Popup {
+                id: popupPreferenze
+                anchors.centerIn: parent
+                width: Math.min(parent.width * 0.85, 300)
+                modal: true; focus: true
+                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                property string dataSelezionata: ""
+
+                background: Rectangle { radius: 12; color: "white"; border.color: "#E65100"; border.width: 2 }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 16
+                    spacing: 12
+
+                    Label {
+                        text: "Inserisci Preferenza"
+                        font.bold: true; font.pixelSize: 15; color: "#E65100"
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Label {
+                        text: popupPreferenze.dataSelezionata
+                        font.pixelSize: 11; color: "#888"
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Label {
+                        text: "Stato: PENDENTE (in attesa di approvazione)"
+                        font.pixelSize: 11; color: "#F57C00"; font.italic: true
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#e0e0e0" }
+
+                    Button {
+                        text: "  MAT  (Mattino)"
+                        Layout.fillWidth: true; implicitHeight: 48
+                        font.bold: true; font.pixelSize: 15
+                        contentItem: Text { text: parent.text; font: parent.font; color: "white"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        background: Rectangle { radius: 8; color: parent.down ? "#006064" : parent.hovered ? "#0097A7" : "#00BCD4"; border.color: "#006064"; border.width: 2 }
+                        onClicked: {
+                            Backend.salvaLicenzaPersonale(paginaSpecchio.idDatabase, popupPreferenze.dataSelezionata, "MAT")
+                            popupPreferenze.close()
+                        }
+                    }
+
+                    Button {
+                        text: "  POM  (Pomeriggio)"
+                        Layout.fillWidth: true; implicitHeight: 48
+                        font.bold: true; font.pixelSize: 15
+                        contentItem: Text { text: parent.text; font: parent.font; color: "white"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        background: Rectangle { radius: 8; color: parent.down ? "#006064" : parent.hovered ? "#0097A7" : "#00BCD4"; border.color: "#006064"; border.width: 2 }
+                        onClicked: {
+                            Backend.salvaLicenzaPersonale(paginaSpecchio.idDatabase, popupPreferenze.dataSelezionata, "POM")
+                            popupPreferenze.close()
+                        }
+                    }
+
+                    Button {
+                        text: "ANNULLA"; Layout.fillWidth: true; implicitHeight: 36
+                        font.pixelSize: 13
+                        onClicked: popupPreferenze.close()
                     }
                 }
             }
@@ -2539,7 +3130,7 @@ Window {
                     anchors.fill: parent
                     anchors.margins: 14
                     Label {
-                        text: "❌ Seleziona le richieste da RIFIUTARE"
+                        text: " Seleziona le richieste da RIFIUTARE"
                         font.bold: true
                         font.pixelSize: 14
                         color: "#d32f2f"
@@ -2584,7 +3175,10 @@ Window {
                                         Layout.fillWidth: true
                                     }
                                     Label {
-                                        text: "Giorno " + modelData.giorno + " — " + modelData.tipo
+                                        text: "Giorno " + modelData.giorno + " — " +
+                                            (modelData.tipo === "LICENZA" && modelData.codice_a
+                                            ? modelData.codice_a
+                                            : modelData.tipo)
                                         font.pixelSize: 11
                                         color: "#666"
                                     }
@@ -2618,7 +3212,7 @@ Window {
                         }
                     }
                     Button {
-                        text: "❌  RIFIUTA SELEZIONATE"
+                        text: "  RIFIUTA SELEZIONATE"
                         Layout.fillWidth: true
                         palette.button: "#d32f2f"
                         palette.buttonText: "white"
@@ -2649,6 +3243,137 @@ Window {
                     }
                 }
             }
+            Popup {
+                id: popupApprovaSelettivo
+                anchors.centerIn: parent
+                width: parent.width * 0.92
+                modal: true
+                focus: true
+                closePolicy: Popup.NoAutoClose
+                property var listaRichieste: []
+                background: Rectangle {
+                    radius: 10
+                    border.color: "#2e7d32"
+                    border.width: 2
+                    color: "white"
+                }
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    Label {
+                        text: " Seleziona le richieste da APPROVARE"
+                        font.bold: true
+                        font.pixelSize: 14
+                        color: "#2e7d32"
+                        Layout.alignment: Qt.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#2e7d32"; opacity: 0.4 }
+                    ListView {
+                        id: listaApprovaView
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Math.min(popupApprovaSelettivo.listaRichieste.length * 56, 280)
+                        clip: true
+                        model: popupApprovaSelettivo.listaRichieste
+                        delegate: Rectangle {
+                            width: listaApprovaView.width
+                            height: 52
+                            color: modelData.selezionato ? "#e8f5e9" : "white"
+                            border.color: "#eee"
+                            border.width: 1
+                            radius: 4
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 10
+                                CheckBox {
+                                    checked: modelData.selezionato
+                                    onCheckedChanged: {
+                                        let lista = popupApprovaSelettivo.listaRichieste;
+                                        lista[index].selezionato = checked;
+                                        popupApprovaSelettivo.listaRichieste = lista.slice();
+                                    }
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    Label {
+                                        text: modelData.utente
+                                        font.bold: true
+                                        font.pixelSize: 12
+                                        Layout.fillWidth: true
+                                    }
+                                    Label {
+                                        text: "Giorno " + modelData.giorno + " — " +
+                                            (modelData.tipo === "LICENZA" && modelData.codice_a
+                                            ? modelData.codice_a
+                                            : modelData.tipo)
+                                        font.pixelSize: 11
+                                        color: "#666"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Rectangle { height: 1; Layout.fillWidth: true; color: "#eee" }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Button {
+                            text: "Seleziona tutti"
+                            font.pixelSize: 11
+                            Layout.fillWidth: true
+                            onClicked: {
+                                let lista = popupApprovaSelettivo.listaRichieste;
+                                for (let i = 0; i < lista.length; i++) lista[i].selezionato = true;
+                                popupApprovaSelettivo.listaRichieste = lista.slice();
+                            }
+                        }
+                        Button {
+                            text: "Deseleziona tutti"
+                            font.pixelSize: 11
+                            Layout.fillWidth: true
+                            onClicked: {
+                                let lista = popupApprovaSelettivo.listaRichieste;
+                                for (let i = 0; i < lista.length; i++) lista[i].selezionato = false;
+                                popupApprovaSelettivo.listaRichieste = lista.slice();
+                            }
+                        }
+                    }
+                    Button {
+                        text: "  APPROVA SELEZIONATE"
+                        Layout.fillWidth: true
+                        palette.button: "#2e7d32"
+                        palette.buttonText: "white"
+                        font.bold: true
+                        onClicked: {
+                            let idDaApprovare = [];
+                            let idDestinatario = -1;
+                            let lista = popupApprovaSelettivo.listaRichieste;
+                            for (let i = 0; i < lista.length; i++) {
+                                if (lista[i].selezionato) {
+                                    idDaApprovare.push(lista[i].id_riposo);
+                                    idDestinatario = lista[i].id_reale;
+                                }
+                            }
+                            if (idDaApprovare.length === 0) {
+                                globalErrorLabel.text = "Nessuna richiesta selezionata.";
+                                globalErrorPopup.open();
+                                return;
+                            }
+                            Backend.processaValidazioni(idDaApprovare, true, paginaSpecchio.utente, idDestinatario);
+                            popupApprovaSelettivo.close();
+                        }
+                    }
+                    Button {
+                        text: "ANNULLA"
+                        Layout.fillWidth: true
+                        onClicked: popupApprovaSelettivo.close()
+                    }
+                }
+            }
 
 
             Connections {
@@ -2671,7 +3396,9 @@ Window {
                     let ultimo = new Date(a, m, 0).getDate();
                     Backend.caricaSpecchioAdmin("01-" + m + "-" + a, ultimo + "-" + m + "-" + a)
                     popupLicenza.close()
+                    popupPreferenze.close()
                     popupEliminaLicenza.close()
+                    popupRitiraRiposo.close()
                 }
             }
         }
@@ -2720,14 +3447,54 @@ Window {
                 }
             
                 ComboBox {
-                    id: comboTipoNuovo;
-                    model: ["SETTIMANALE", "FESTIVO", "MEDICO", "STUDIO", "SANGUE", "ALTRO"];
+                    id: comboTipoNuovo
+                    model: ["SETTIMANALE", "FESTIVO", "MEDICO", "STUDIO", "SANGUE", "ALTRO"]
                     Layout.fillWidth: true
+                    contentItem: Text {
+                        leftPadding: 8
+                        text: comboTipoNuovo.displayText
+                        font.pixelSize: 13; font.bold: true; color: "#1f2937"
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 6; color: comboTipoNuovo.pressed ? "#dbeafe" : "#ffffff"
+                        border.color: comboTipoNuovo.activeFocus ? "#1565C0" : "#7f9fbd"
+                        border.width: comboTipoNuovo.activeFocus ? 2 : 1.5
+                    }
+                    delegate: ItemDelegate {
+                        width: comboTipoNuovo.width
+                        contentItem: Text {
+                            text: modelData
+                            color: "#1f2937"
+                            font.pixelSize: 13
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 8
+                        }
+                        background: Rectangle {
+                            color: hovered ? "#dbeafe" : "#ffffff"
+                        }
+                    }
                 }
 
                 Button {
                     text: "SALVA"
                     Layout.fillWidth: true
+                    implicitHeight: 46
+                    font.pixelSize: 15
+                    font.bold: true
+                    contentItem: Text {
+                        text: parent.text
+                        font: parent.font
+                        color: "white"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 8
+                        color: parent.down ? "#1b5e20" : parent.hovered ? "#2e7d32" : "#388E3C"
+                        border.color: "#1b5e20"
+                        border.width: 2
+                    }
                     onClicked: Backend.aggiungiRiposo(idDatabase, campoDataNuova.text, comboTipoNuovo.currentIndex + 1)
                 }
             }
@@ -2819,6 +3586,19 @@ Window {
                             id: comboTipo
                             model: ["SETTIMANALE", "FESTIVO", "MEDICO", "STUDIO", "SANGUE", "ALTRO"]
                             Layout.fillWidth: true
+                            delegate: ItemDelegate {
+                                width: comboTipo.width
+                                contentItem: Text {
+                                    text: modelData
+                                    color: "#1f2937"
+                                    font.pixelSize: 13
+                                    verticalAlignment: Text.AlignVCenter
+                                    leftPadding: 8
+                                }
+                                background: Rectangle {
+                                    color: hovered ? "#dbeafe" : "#ffffff"
+                                }
+                            }
                         }
                         Button {
                             text: "SALVA"
@@ -2842,6 +3622,7 @@ Window {
         Page {
             id: paginaFruizione
             property string idDatabase: ""
+            property string dataPreimpostata: ""
             property var listaDisponibili: []
             function formattaData(dataISO) {
                     if (!dataISO) return ""
@@ -2881,7 +3662,7 @@ Window {
                         Label {
                             text: modelData.dataFruizioneITA !== "" ?
                                   "⚠️ Già richiesto per il: " + modelData.dataFruizioneITA :
-                                  "✅ Libero (Nessuna data assegnata)"
+                                  " Libero (Nessuna data assegnata)"
                             font.pixelSize: 13
                             color: modelData.dataFruizioneITA !== "" ? "#E64A19" : "#388E3C"
                         }
@@ -2890,20 +3671,40 @@ Window {
                         selectedDataMaturazioneISO.text = modelData.dataISO
                         labelDataMaturazioneBella.text = "Riposo del: " + modelData.dataITA
 
-                        if (modelData.dataFruizioneITA !== "") {
-                            dataFruizioneInput.text = modelData.dataFruizioneITA
-                            globalErrorLabel.text = "ATTENZIONE: Questo riposo è già assegnato al " + modelData.dataFruizioneITA + ". Se prosegui, la data verrà sovrascritta."
-                            var conn = Qt.createQmlObject('import QtQuick; Connections {
-                                target: globalErrorPopup;
-                                function onClosed() {
-                                    popupFruisci.open();
-                                    this.destroy();
-                                }
-                            }', paginaFruizione);
-                            globalErrorPopup.open()
+                        if (paginaFruizione.dataPreimpostata !== "") {
+                            // Flusso da SpecchioPage: salva subito con stato RICHIESTO senza popup
+                            if (modelData.dataFruizioneITA !== "") {
+                                globalErrorLabel.text = "ATTENZIONE: Questo riposo è già assegnato al " + modelData.dataFruizioneITA + ". Se prosegui, la data verrà sovrascritta."
+                                var connDiretta = Qt.createQmlObject('import QtQuick; Connections {
+                                    target: globalErrorPopup;
+                                    function onClosed() {
+                                        Backend.fruisciRiposo(paginaFruizione.idDatabase, modelData.dataISO, paginaFruizione.formattaData(paginaFruizione.dataPreimpostata), 1)
+                                        stack.pop()
+                                        this.destroy();
+                                    }
+                                }', paginaFruizione);
+                                globalErrorPopup.open()
+                            } else {
+                                Backend.fruisciRiposo(paginaFruizione.idDatabase, modelData.dataISO, paginaFruizione.formattaData(paginaFruizione.dataPreimpostata), 1)
+                                stack.pop()
+                            }
                         } else {
-                            dataFruizioneInput.text = ""
-                            popupFruisci.open()
+                            // Flusso manuale: apri popup per inserire data
+                            if (modelData.dataFruizioneITA !== "") {
+                                dataFruizioneInput.text = modelData.dataFruizioneITA
+                                globalErrorLabel.text = "ATTENZIONE: Questo riposo è già assegnato al " + modelData.dataFruizioneITA + ". Se prosegui, la data verrà sovrascritta."
+                                var conn = Qt.createQmlObject('import QtQuick; Connections {
+                                    target: globalErrorPopup;
+                                    function onClosed() {
+                                        popupFruisci.open();
+                                        this.destroy();
+                                    }
+                                }', paginaFruizione);
+                                globalErrorPopup.open()
+                            } else {
+                                dataFruizioneInput.text = ""
+                                popupFruisci.open()
+                            }
                         }
                     }
                 }
@@ -2914,17 +3715,52 @@ Window {
                 anchors.centerIn: parent
                 width: parent.width * 0.9
                 modal: true
+                background: Rectangle {
+                    color: "white"; radius: 10
+                    border.color: "#1565C0"; border.width: 2
+                }
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: 10
                     Text { id: selectedDataMaturazioneISO; visible: false }
                     Label { id: labelDataMaturazioneBella; font.bold: true; horizontalAlignment: Text.AlignHCenter }
                     Label { text: "In quale data vuoi usarlo?" }
-                    DateMaskField { id: dataFruizioneInput; Layout.fillWidth: true }
+                    DateMaskField {
+                        id: dataFruizioneInput
+                        Layout.fillWidth: true
+                        background: Rectangle {
+                            implicitHeight: 45
+                            border.color: dataFruizioneInput.activeFocus ? "#2196F3" : "#bdbebf"
+                            border.width: 2; radius: 4; color: "white"
+                        }
+                    }
                     ComboBox {
                         id: comboStato
                         model: ["RICHIESTO", "VALIDATO"]
                         Layout.fillWidth: true
+                        contentItem: Text {
+                            leftPadding: 8; text: comboStato.displayText
+                            font.pixelSize: 13; font.bold: true; color: "#1f2937"
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            radius: 6; color: comboStato.pressed ? "#dbeafe" : "#ffffff"
+                            border.color: comboStato.activeFocus ? "#1565C0" : "#7f9fbd"
+                            border.width: comboStato.activeFocus ? 2 : 1.5
+                        }
+                        delegate: ItemDelegate {
+                            width: comboStato.width
+                            contentItem: Text {
+                                text: modelData
+                                color: "#1f2937"
+                                font.pixelSize: 13
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: 8
+                            }
+                            background: Rectangle {
+                                color: hovered ? "#dbeafe" : "#ffffff"
+                            }
+                        }
                     }
                     Button {
                         text: "CONFERMA FRUIZIONE"
@@ -2954,7 +3790,10 @@ Window {
             Connections {
                 target: Backend
                 function onOperazioneCompletata(messaggio) {
-                    Backend.caricaRiposiDisponibili(paginaFruizione.idDatabase)
+                    if (paginaFruizione.dataPreimpostata === "") {
+                        Backend.caricaRiposiDisponibili(paginaFruizione.idDatabase)
+                    }
+                    // Se veniva da SpecchioPage, il pop() è già avvenuto nell'onClicked
                 }
             }
         }
@@ -2983,6 +3822,11 @@ Window {
                 DateMaskField {
                     id: dataDaModificare
                     Layout.fillWidth: true
+                    background: Rectangle {
+                        implicitHeight: 45
+                        border.color: dataDaModificare.activeFocus ? "#2196F3" : "#bdbebf"
+                        border.width: 2; radius: 4; color: "white"
+                    }
                 }
 
                 Rectangle { height: 1; Layout.fillWidth: true; color: "#ccc" }
@@ -2993,12 +3837,58 @@ Window {
                     id: comboNuovoTipo
                     model: ["SETTIMANALE", "FESTIVO", "MEDICO", "STUDIO", "SANGUE", "ALTRO"]
                     Layout.fillWidth: true
+                    contentItem: Text {
+                        leftPadding: 8; text: comboNuovoTipo.displayText
+                        font.pixelSize: 13; font.bold: true; color: "#1f2937"
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 6; color: comboNuovoTipo.pressed ? "#dbeafe" : "#ffffff"
+                        border.color: comboNuovoTipo.activeFocus ? "#1565C0" : "#7f9fbd"
+                        border.width: comboNuovoTipo.activeFocus ? 2 : 1.5
+                    }
+                    delegate: ItemDelegate {
+                        width: comboNuovoTipo.width
+                        contentItem: Text {
+                            text: modelData
+                            color: "#1f2937"
+                            font.pixelSize: 13
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 8
+                        }
+                        background: Rectangle {
+                            color: hovered ? "#dbeafe" : "#ffffff"
+                        }
+                    }
                 }
 
                 ComboBox {
                     id: comboNuovoStato
                     model: ["ACQUISITO", "RICHIESTO", "VALIDATO"]
                     Layout.fillWidth: true
+                    contentItem: Text {
+                        leftPadding: 8; text: comboNuovoStato.displayText
+                        font.pixelSize: 13; font.bold: true; color: "#1f2937"
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 6; color: comboNuovoStato.pressed ? "#dbeafe" : "#ffffff"
+                        border.color: comboNuovoStato.activeFocus ? "#1565C0" : "#7f9fbd"
+                        border.width: comboNuovoStato.activeFocus ? 2 : 1.5
+                    }
+                    delegate: ItemDelegate {
+                        width: comboNuovoStato.width
+                        contentItem: Text {
+                            text: modelData
+                            color: "#1f2937"
+                            font.pixelSize: 13
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 8
+                        }
+                        background: Rectangle {
+                            color: hovered ? "#dbeafe" : "#ffffff"
+                        }
+                    }
                 }
 
                 Button {
@@ -3072,11 +3962,32 @@ Window {
                     placeholderText: "INSERISCI DATA"
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
+                    background: Rectangle {
+                        implicitHeight: 45
+                        border.color: dataDaEliminare.activeFocus ? "#2196F3" : "#bdbebf"
+                        border.width: 2; radius: 4; color: "white"
+                    }
                 }
 
                 Button {
                     text: "ELIMINA"
                     Layout.fillWidth: true
+                    implicitHeight: 46
+                    font.pixelSize: 15
+                    font.bold: true
+                    contentItem: Text {
+                        text: parent.text
+                        font: parent.font
+                        color: "white"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 8
+                        color: parent.down ? "#7f1d1d" : parent.hovered ? "#b91c1c" : "#ef4444"
+                        border.color: "#7f1d1d"
+                        border.width: 2
+                    }
                     onClicked: {
                         if (dataDaEliminare.text !== "") {
                             Backend.controllaEsistenzaEChiediConferma(idDatabase, dataDaEliminare.text)
@@ -3090,7 +4001,10 @@ Window {
                 width: parent.width * 0.9
                 modal: true
                 focus: true
-
+                background: Rectangle {
+                    color: "white"; radius: 10
+                    border.color: "#ef4444"; border.width: 2
+                }
                 ColumnLayout {
                     anchors.fill: parent; spacing: 15; anchors.margins: 10
 
@@ -3109,9 +4023,24 @@ Window {
                     RowLayout {
                         Layout.fillWidth: true; spacing: 10
                         Button {
-                            text: "ELIMINA"
+                            text: " ELIMINA"
                             Layout.fillWidth: true
-                            palette.button: "red"; palette.buttonText: "red"
+                            implicitHeight: 44
+                            font.pixelSize: 14
+                            font.bold: true
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: "white"
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                radius: 8
+                                color: parent.down ? "#7f1d1d" : parent.hovered ? "#b91c1c" : "#ef4444"
+                                border.color: "#7f1d1d"
+                                border.width: 2
+                            }
                             onClicked: {
                                 Backend.cancellaRiposoEffettivo(idDatabase, dataDaEliminare.text)
                                 popupConfermaElimina.close()
@@ -3120,6 +4049,22 @@ Window {
                         Button {
                             text: "ANNULLA"
                             Layout.fillWidth: true
+                            implicitHeight: 44
+                            font.pixelSize: 14
+                            font.bold: true
+                            contentItem: Text {
+                                text: parent.text
+                                font: parent.font
+                                color: "#555555"
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                radius: 8
+                                color: parent.down ? "#e0e0e0" : parent.hovered ? "#f0f0f0" : "white"
+                                border.color: "#cccccc"
+                                border.width: 2
+                            }
                             onClicked: popupConfermaElimina.close()
                         }
                     }
@@ -3182,6 +4127,19 @@ Window {
                                 "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"]
                         Component.onCompleted: currentIndex = new Date().getMonth()
                         onActivated: paginaStraordinari.ricarica()
+                        delegate: ItemDelegate {
+                            width: comboMeseStr.width
+                            contentItem: Text {
+                                text: modelData
+                                color: "#1f2937"
+                                font.pixelSize: 13
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: 8
+                            }
+                            background: Rectangle {
+                                color: hovered ? "#dbeafe" : "#ffffff"
+                            }
+                        }
                     }
                     ComboBox {
                         id: comboAnnoStr
@@ -3197,6 +4155,19 @@ Window {
                                 if (model[i] === y) { currentIndex = i; break }
                         }
                         onActivated: paginaStraordinari.ricarica()
+                        delegate: ItemDelegate {
+                            width: comboAnnoStr.width
+                            contentItem: Text {
+                                text: modelData
+                                color: "#1f2937"
+                                font.pixelSize: 13
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: 8
+                            }
+                            background: Rectangle {
+                                color: hovered ? "#dbeafe" : "#ffffff"
+                            }
+                        }
                     }
                 }
             }
@@ -3534,6 +4505,8 @@ Window {
             if (nome === "Il Papa")                 return "https://media2.giphy.com/media/m2lzGNOPx2UgE74kB2/giphy.gif"
             if (nome === "Giornata da Leoni")       return "https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExc3QxZTJ3YTBqejNsNGU1MDMzMWZ1MnNmdzU1Ymh3aDF6Zjh4b2k3dSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l1BUojJe4cno1U0CgL/giphy.gif"
             if (nome === "Sprint di Fuoco")         return "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2xybDdjMnIwazFpaWd5MmY0anA1cW4yczVhYWl2cWh5NGpleDZnaSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/YA6dmVW0gfIw8/giphy.gif"
+            if (nome === "Ufficio anagrafe")        return "https://media0.giphy.com/media/3o7TKTDn976rzVgky4/giphy.gif"
+            if (nome === "Il vampiro")              return "https://media2.giphy.com/media/PA5pAhOp5Y2Qg/giphy.gif"
             return "https://media0.giphy.com/media/1xkMJIvxeKiDS/giphy.gif"
         }
 
@@ -3550,6 +4523,8 @@ Window {
             if (nome === "Il Papa")                 return "La religione ormai ti ha conquistato, sei il chirichetto dell'Ufficio!\n[hai riposato per 4 domeniche nel mese]"
             if (nome === "Giornata da Leoni")       return "Che tu voglia o no il lavoro deve essere concluso!\n[hai fatto 4 ore di straordinario in domenica o festivo]"
             if (nome === "Sprint di Fuoco")         return "Vacci piano... abbiamo tutti mangiato la tua polvere!\n[hai maturato 10 ore di straordinario nella prima settimana completa del mese]"
+            if (nome === "Ufficio anagrafe")        return "Pratiche archiviate, fascicoli allineati e MAT timbrate senza perdere il filo.\n[hai validato 3 licenze MAT nella stessa settimana lunedi-domenica]"
+            if (nome === "Il vampiro")              return "Quando il turno scivola verso il pomeriggio o la sera, tu sei gia' li' con il mantello pronto.\n[hai validato 3 licenze SER/POM nella stessa settimana lunedi-domenica]"
             return ""
         }
 
