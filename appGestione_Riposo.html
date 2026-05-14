@@ -12,30 +12,23 @@ SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
     <!--Set visual viewport size for mobile devices to the device size,
         witch results in a scale of 1 and a 1:1 mapping between CSS pixels
         and Qt device independent pixels. -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, height=device-height, user-scalable=0"/>
 
     <title>appGestione_Riposo</title>
     <style>
-    html, body {
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-    }
-    #screen {
-        width: 100vw;
-        height: 100vh;
-        position: fixed;
-        top: 0;
-        left: 0;
-        overflow: hidden;
-    }
-    canvas {
-        width: 100% !important;
-        height: 100% !important;
-    }
+      /* Make the html body cover the entire (visual) viewport with no scroll bars. */
+      html, body { padding: 0; margin: 0; overflow: hidden; height: 100% }
+      #screen { width: 100%; height: 100%; }
     </style>
+    <!-- 1. jsPDF UMD build (espone window.jspdf) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- 2. jsPDF-AutoTable plugin (si aggancia automaticamente a window.jspdf.jsPDF) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+    <!-- 3. Logica PDF personalizzata — dipende dai due script sopra -->
+    <script src="pdf.js"></script>
+
   </head>
   <body onload="init()">
     <figure style="overflow:visible;" id="qtspinner">
@@ -89,138 +82,11 @@ SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
             }
         }
     </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-    <script>
-    function generaPDFSpecchio(utenti, dati, giorni, inizio, fine) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
-        const GIORNI_ITA = ['DOM','LUN','MAR','MER','GIO','VEN','SAB'];
-
-        // --- Periodo blocco ---
-        const giorniPeriodo = [];
-        let cur = new Date(inizio + "T00:00:00");
-        const fineDate = new Date(fine + "T00:00:00");
-        while (cur <= fineDate) {
-            giorniPeriodo.push({
-                giorno:   cur.getDate(),
-                nomeDayG: GIORNI_ITA[cur.getDay()]
-            });
-            cur.setDate(cur.getDate() + 1);
-        }
-
-        // --- Colore testo per tipo ---
-        const coloreTesto = (tipo) => {
-            if (!tipo) return [0, 0, 0];
-            const t = tipo.toUpperCase();
-            if (t.includes("SETTIMANALE")) return [244, 67,  54];
-            if (t.includes("FESTIVO"))     return [255,152,   0];
-            if (t.includes("MEDICO"))      return [ 33,150, 243];
-            if (t.includes("STUDIO"))      return [ 50, 50,  50];
-            if (t.includes("SANGUE"))      return [139, 69,  19];
-            if (t.includes("LICENZA"))     return [156, 39, 176];
-            return [76, 175, 80];
-        };
-
-        // --- Intestazione documento ---
-        doc.setFillColor(21, 101, 192);
-        doc.rect(0, 0, 297, 16, "F");
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(12);
-        doc.setFont(undefined, "bold");
-        doc.text("SPECCHIO RIPOSI - Periodo Blocco", 148, 8, { align: "center" });
-        doc.setFontSize(8);
-        doc.setFont(undefined, "normal");
-        doc.text("Dal: " + inizio + "   Al: " + fine, 148, 14, { align: "center" });
-        doc.setTextColor(0, 0, 0);
-
-        // --- Header tabella (2 righe: numero + giorno) ---
-        const headRow = [
-            { content: "UTENTE", rowSpan: 1, styles: { halign: "left" } },
-            ...giorniPeriodo.map(g => ({
-                content: g.giorno + "\n" + g.nomeDayG,
-                styles: { halign: "center" }
-            }))
-        ];
-
-        // --- Righe dati ---
-        // Estrai lista utenti unici nell'ordine ricevuto
-        const listaUtenti = Array.isArray(utenti) && utenti.length > 0
-            ? utenti
-            : [...new Set(dati.map(item => item.u))];
-
-        const body = listaUtenti.map(nomeUtente => {
-            const celle = giorniPeriodo.map(g => {
-                const trovato = dati.find(item =>
-                    item.u === nomeUtente && Number(item.d) === g.giorno
-                );
-                return trovato ? (trovato.a || "") : "";
-            });
-            return [nomeUtente, ...celle];
-        });
-
-        // --- Larghezze ---
-        const nomeW = 45;
-        const disponibile = 275 - nomeW;
-        const cellW = Math.max(5, Math.min(12, disponibile / giorniPeriodo.length));
-        const colStyles = {
-            0: { cellWidth: nomeW, halign: "left", fontStyle: "bold", fontSize: 7 }
-        };
-        for (let i = 1; i <= giorniPeriodo.length; i++) {
-            colStyles[i] = { cellWidth: cellW, halign: "center", fontSize: 6 };
-        }
-
-        // --- Render tabella ---
-        doc.autoTable({
-            head: [headRow],
-            body: body,
-            startY: 18,
-            margin: { left: 10, right: 10 },
-            styles: {
-                fontSize: 7,
-                cellPadding: { top: 1.5, bottom: 1.5, left: 1, right: 1 },
-                lineColor: [180, 180, 180],
-                lineWidth: 0.3,
-                overflow: "ellipsize",
-                minCellHeight: 8
-            },
-            headStyles: {
-                fillColor:  [21, 101, 192],
-                textColor:  [255, 255, 255],
-                fontStyle:  "bold",
-                fontSize:   7,
-                halign:     "center",
-                minCellHeight: 12
-            },
-            alternateRowStyles: {
-                fillColor: [245, 248, 255]
-            },
-            columnStyles: colStyles,
-
-            didParseCell: function(hookData) {
-                if (hookData.section !== "body" || hookData.column.index === 0) return;
-                const idx   = hookData.row.index;
-                const colIdx = hookData.column.index - 1;
-                if (colIdx >= giorniPeriodo.length) return;
-
-                const nomeU  = listaUtenti[idx];
-                const g      = giorniPeriodo[colIdx];
-                const trovato = dati.find(item =>
-                    item.u === nomeU && Number(item.d) === g.giorno
-                );
-                if (trovato && trovato.tipo && hookData.cell.raw !== "") {
-                    const [r, gv, b] = coloreTesto(trovato.tipo);
-                    hookData.cell.styles.textColor = [r, gv, b];
-                    hookData.cell.styles.fontStyle = "bold";
-                }
-            }
-        });
-
-        doc.save("specchio_riposi_" + inizio + "_" + fine + ".pdf");
-    }
-    </script>
+    <!-- Modulo principale Qt WebAssembly -->
     <script src="appGestione_Riposo.js"></script>
+
+    <!-- Loader Qt (deve restare ULTIMO) -->
     <script type="text/javascript" src="qtloader.js"></script>
   </body>
 </html>
