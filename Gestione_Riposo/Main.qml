@@ -278,23 +278,6 @@ ApplicationWindow {
             function aggiornaBadgeDaRisultato(risultato) {
                 paginaMenu.badgeCorrente = risultato && risultato.best ? risultato.best : { nome: "", livello: 0, colore: "#888888" }
                 paginaMenu.tuttiBadge = risultato && risultato.tutti ? risultato.tutti : []
-
-                if (!risultato || !risultato.tutti || risultato.tutti.length === 0) return
-
-                var firma = JSON.stringify(risultato.tutti.map(function(b) {
-                    return {
-                        nome: b.nome,
-                        livello: b.livello,
-                        colore: b.colore,
-                        occorrenze: b.occorrenze || 1
-                    }
-                }))
-
-                if (firma === paginaMenu.firmaBadgeSalvati) return
-
-                paginaMenu.firmaBadgeSalvati = firma
-                var _oggi = new Date()
-                Backend.salvaBadgeMese(paginaMenu.idDatabase, _oggi.getFullYear(), _oggi.getMonth() + 1, risultato.tutti)
             }
 
             function toDate(s) {
