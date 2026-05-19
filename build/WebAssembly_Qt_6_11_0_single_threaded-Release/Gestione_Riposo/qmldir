@@ -1,6 +1,0 @@
-module Gestione_Riposo
-typeinfo appGestione_Riposo.qmltypes
-prefer :/qt/qml/Gestione_Riposo/
-Main 1.0 Main.qml
-depends QtQuick
-

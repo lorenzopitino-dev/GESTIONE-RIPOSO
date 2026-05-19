@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="/qt/qml/Gestione_Riposo">C:/ProgettiQt/Gestione_Riposo/build-wasm/Gestione_Riposo</file>
+
+  </qresource>
+</RCC>
